@@ -1,16 +1,20 @@
 from typing import Any, Callable, List, Optional
 
+
 class SampleTransformer:
     """
     Clase para transformar una muestra. Permite encadenar múltiples transformaciones.
     """
+
     def __init__(self, transforms: Optional[List[Callable[[Any], Any]]] = None) -> None:
         """
         Args:
             transforms (Optional[List[Callable[[Any], Any]]]): Lista de funciones de transformación.
                 Cada función debe aceptar una muestra y retornar la muestra transformada.
         """
-        self.transforms: List[Callable[[Any], Any]] = transforms if transforms is not None else []
+        self.transforms: List[Callable[[Any], Any]] = (
+            transforms if transforms is not None else []
+        )
 
     def add_transform(self, transform: Callable[[Any], Any]) -> None:
         """

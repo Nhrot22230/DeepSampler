@@ -2,8 +2,11 @@ from typing import Any, List, Optional
 from torch.utils.data import Dataset
 from src.data_utils.transform.sample_tranformer import SampleTransformer
 
+
 class CustomDataset(Dataset):
-    def __init__(self, data: List[Any], transform: Optional[SampleTransformer] = None) -> None:
+    def __init__(
+        self, data: List[Any], transform: Optional[SampleTransformer] = None
+    ) -> None:
         """
         Dataset genérico con tipado fuerte y estructura modular.
 
@@ -39,8 +42,10 @@ class CustomDataset(Dataset):
             IndexError: Si el índice está fuera del rango válido.
         """
         if idx < 0 or idx >= len(self.samples):
-            raise IndexError(f"El índice {idx} está fuera del rango (0, {len(self.samples)-1}).")
-        
+            raise IndexError(
+                f"El índice {idx} está fuera del rango (0, {len(self.samples)-1})."
+            )
+
         sample: Any = self.samples[idx]
         if self.transform is not None:
             sample = self.transform(sample)

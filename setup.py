@@ -8,10 +8,7 @@ import zipfile
 from tqdm import tqdm
 
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(levelname)s] %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
 
 def load_config(config_file="environment.yml"):
@@ -53,11 +50,17 @@ def download_dataset(url, dest_path, dataset_name):
         response = requests.get(url, stream=True)
         response.raise_for_status()
 
-        total_size = int(response.headers.get('content-length', 0))
+        total_size = int(response.headers.get("content-length", 0))
         block_size = 8192
 
         with open(zip_filename, "wb") as f:
-            with tqdm(total=total_size, unit='B', unit_scale=True, desc=f"Downloading {dataset_name}", ncols=80) as progress_bar:
+            with tqdm(
+                total=total_size,
+                unit="B",
+                unit_scale=True,
+                desc=f"Downloading {dataset_name}",
+                ncols=80,
+            ) as progress_bar:
                 for chunk in response.iter_content(chunk_size=block_size):
                     if chunk:
                         f.write(chunk)
@@ -73,7 +76,7 @@ def download_dataset(url, dest_path, dataset_name):
 def extract_dataset(zip_filepath, extract_to):
     """Extract the ZIP file to the specified directory."""
     try:
-        with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
+        with zipfile.ZipFile(zip_filepath, "r") as zip_ref:
             zip_ref.extractall(extract_to)
         logging.info("Extraction completed to '%s'.", extract_to)
     except zipfile.BadZipFile:
@@ -100,11 +103,9 @@ def main():
         logging.error("Missing key in configuration: %s", str(e))
         sys.exit(1)
 
-    create_directories({
-        "raw": raw_path,
-        "external": external_path,
-        "processed": processed_path
-    })
+    create_directories(
+        {"raw": raw_path, "external": external_path, "processed": processed_path}
+    )
 
     zip_filepath = download_dataset(dataset_url, raw_path, dataset_name)
 
@@ -113,5 +114,5 @@ def main():
     logging.info("Setup completed successfully.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

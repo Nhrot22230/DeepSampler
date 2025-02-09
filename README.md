@@ -80,21 +80,14 @@ project_root/
 │   └── run_evaluation.sh      # Script para ejecutar la evaluación.
 ├── src/                       # Código fuente principal del proyecto.
 │   ├── __init__.py
-│   ├── data/                  # Manejo de datos: definiciones de datasets, cargadores, aumentaciones.
-│   │   ├── __init__.py
-│   │   ├── dataset.py         # Clases de dataset personalizadas.
-│   │   └── transforms.py      # Utilidades de aumentación y transformación de datos.
 │   ├── models/                # Definiciones y arquitecturas del modelo.
 │   │   ├── __init__.py
 │   │   ├── base_model.py      # Clases base o utilidades comunes para modelos.
 │   │   └── sde_model.py       # Ejemplo de modelo para detección de eventos sonoros.
 │   ├── pipelines/             # Pipelines de extremo a extremo (entrenamiento, inferencia, etc.).
 │   │   ├── __init__.py
-│   │   └── train_pipeline.py  # Código para inicializar datos, modelo, ciclo de entrenamiento, etc.
-│   ├── training/              # Utilidades de entrenamiento, entrenadores y optimizadores.
-│   │   ├── __init__.py
-│   │   ├── trainer.py         # Ciclos de entrenamiento encapsulados.
-│   │   └── optimizer.py       # Configuraciones de optimizadores y schedulers de tasa de aprendizaje.
+|   |   ├── data.py            # Código para inicializar datos
+│   │   └── train.py           # Código para inicializar modelo, ciclo de entrenamiento, etc.
 │   ├── evaluation/            # Código de evaluación y pruebas.
 │   │   ├── __init__.py
 │   │   ├── tester.py          # Script para ejecutar inferencia o ciclos de prueba.
@@ -106,6 +99,14 @@ project_root/
 │       └── helpers.py         # Funciones de ayuda generales.
 ├── tests/                     # Pruebas unitarias e integradas.
 │   ├── __init__.py
+│   ├── data/                  # Manejo de datos: definiciones de datasets, cargadores, aumentaciones.
+│   │   ├── __init__.py
+│   │   ├── dataset            # Clases de dataset personalizadas.
+│   │   └── transforms         # Utilidades de aumentación y transformación de datos.
+│   ├── training/              # Utilidades de entrenamiento, entrenadores y optimizadores.
+│   │   ├── __init__.py
+│   │   ├── trainer            # Ciclos de entrenamiento encapsulados.
+│   │   └── optimizer          # Configuraciones de optimizadores y schedulers de tasa de aprendizaje.
 │   ├── test_data.py           # Pruebas para pipelines de datos.
 │   ├── test_model.py          # Pruebas para arquitecturas de modelos.
 │   └── test_pipeline.py       # Pruebas para pipelines de entrenamiento/inferencia.
@@ -119,25 +120,25 @@ project_root/
 
 ### **Explicación de Carpetas Clave**
 
-- **configs/**  
+- **configs/**
   Aquí se almacenan archivos de configuración (YAML, JSON, etc.) que definen hiperparámetros, rutas de datos, parámetros del modelo y otros ajustes, permitiendo cambiar de experimento sin modificar el código.
 
-- **data/**  
+- **data/**
   Organiza tus datos en subcarpetas:
   - **raw/**: Datos originales sin modificar.
   - **processed/**: Datos procesados y listos para el entrenamiento.
   - **external/**: Datos provenientes de fuentes externas o de terceros.
 
-- **experiments/**  
+- **experiments/**
   Contiene logs, checkpoints y resultados de experimentos. Esta separación facilita el seguimiento de las diferentes versiones y comparaciones de rendimiento a lo largo del tiempo.
 
-- **notebooks/**  
+- **notebooks/**
   Se utilizan para la exploración, visualización y análisis preliminares. Son ideales para la depuración y el desarrollo iterativo.
 
-- **scripts/**  
+- **scripts/**
   Scripts (en shell o Python) que permiten ejecutar tareas como el entrenamiento, evaluación o despliegue del modelo desde la línea de comandos.
 
-- **src/**  
+- **src/**
   Alberga el código fuente principal del proyecto, organizado en módulos que se encargan de:
   - **data/**: Manejo de datasets y transformaciones.
   - **models/**: Definición de arquitecturas y modelos.
@@ -146,13 +147,13 @@ project_root/
   - **evaluation/**: Código para evaluar el rendimiento del modelo y calcular métricas.
   - **utils/**: Funciones y utilidades generales (logging, parseo de configuraciones, etc.).
 
-- **tests/**  
+- **tests/**
   Contiene pruebas unitarias e integradas para garantizar la robustez y correcto funcionamiento del código. Se recomienda utilizar frameworks como PyTest para automatizar estas pruebas.
 
-- **environment.yml & requirements.txt**  
+- **environment.yml & requirements.txt**
   Archivos que definen las dependencias del proyecto, ya sea mediante Conda o pip.
 
-- **setup.py**  
+- **setup.py**
   Facilita el empaquetado y distribución del proyecto como un módulo reutilizable.
 
 ---

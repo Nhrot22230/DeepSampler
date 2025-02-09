@@ -1,0 +1,10 @@
+{
+    // Otras configuraciones recomendadas (por ejemplo, para formateo al guardar)
+    "editor.formatOnSave": true,
+    "files.trimTrailingWhitespace": true,
+    //Flake8
+    "flake8.args": [
+        "--config",
+        "${workspaceFolder}/configs/.flake8"
+    ],
+}

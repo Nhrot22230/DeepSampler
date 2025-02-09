@@ -17,7 +17,8 @@ OVERLAP_FRACTION = 0.5  # Fracción de solapamiento entre chunks
 
 def load_and_normalize(file_path: str, sr: int = SR) -> np.ndarray:
     """
-    Carga un archivo de audio y normaliza la señal para que su pico máximo sea 1.
+    Carga un archivo de audio y normaliza la señal para que su pico
+    máximo sea 1.
     """
     try:
         y, _ = librosa.load(file_path, sr=sr, mono=True)
@@ -141,8 +142,8 @@ def process_song(song_folder: str, save_dir: str) -> None:
 
 def process_dataset(root_dir: str, processed_dir: str) -> None:
     """
-    Itera sobre todas las carpetas de canciones en el dataset de entrenamiento y
-    aplica el preprocesamiento a cada una.
+    Itera sobre todas las carpetas de canciones en el dataset de entrenamiento
+    y aplica el preprocesamiento a cada una.
     """
     song_folders = [
         os.path.join(root_dir, d)

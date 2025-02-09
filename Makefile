@@ -57,7 +57,7 @@ test:
 
 lint:
 	@echo "Ejecutando flake8..."
-	flake8 .
+	flake8 --config=configs/.flake8 .
 
 format:
 	@echo "Ejecutando black para formatear el código..."

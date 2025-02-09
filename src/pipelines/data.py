@@ -23,15 +23,15 @@ def load_and_normalize(file_path: str, sr: int = SR) -> np.ndarray:
     """
     try:
         y, _ = librosa.load(file_path, sr=sr, mono=True)
-        max_val = np.max(np.abs(y))
-        if max_val > 0:
-            y = y / max_val
+        # max_val = np.max(np.abs(y))
+        # if max_val > 0:
+        #     y = y / max_val
         return y
     except Exception as e:
         raise ValueError(f"Error loading {file_path}: {e}")
 
 
-def compute_log_spectrogram(
+def compute_spectrogram(
     y: np.ndarray, n_fft: int = N_FFT, hop_length: int = HOP_LENGTH
 ) -> np.ndarray:
     """
@@ -39,8 +39,7 @@ def compute_log_spectrogram(
     """
     S_complex = librosa.stft(y, n_fft=n_fft, hop_length=hop_length)
     S_mag = np.abs(S_complex)
-    S_log = np.log1p(S_mag)
-    return S_log
+    return librosa.amplitude_to_db(S_mag, ref=np.max)
 
 
 def chunk_spectrogram(spec: np.ndarray, chunk_frames: int, overlap_frames: int) -> list:
@@ -92,11 +91,11 @@ def process_song(song_folder: str, save_dir: str) -> None:
         logging.error(e)
         return
 
-    mixture_spec = compute_log_spectrogram(mixture_audio)
-    drums_spec = compute_log_spectrogram(drums_audio)
-    bass_spec = compute_log_spectrogram(bass_audio)
-    vocals_spec = compute_log_spectrogram(vocals_audio)
-    other_spec = compute_log_spectrogram(other_audio)
+    mixture_spec = compute_spectrogram(mixture_audio)
+    drums_spec = compute_spectrogram(drums_audio)
+    bass_spec = compute_spectrogram(bass_audio)
+    vocals_spec = compute_spectrogram(vocals_audio)
+    other_spec = compute_spectrogram(other_audio)
 
     n_time = mixture_spec.shape[1]
     if not (

@@ -17,6 +17,24 @@ CHUNK_DURATION = 5.0  # Duración de cada chunk en segundos
 OVERLAP_FRACTION = 0.2  # Fracción de solapamiento entre chunks
 
 
+class TqdmLoggingHandler(logging.Handler):
+    """
+    Handler de logging que escribe mensajes usando
+    tqdm.write para evitar que se interfiera con la barra de progreso.
+    """
+
+    def __init__(self, level=logging.NOTSET):
+        super().__init__(level)
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            tqdm.write(msg)
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
+
 def load_audio(file_path: str, sr: int = SR) -> np.ndarray:
     """
     Carga un archivo de audio y normaliza la señal para que su pico
@@ -133,27 +151,34 @@ def process_dataset(root_dir: str, processed_dir: str) -> None:
     else:
         logging.warning(f"El directorio {processed_dir} ya existe. Se sobreescribirá.")
 
-    for song_folder in tqdm(song_folders, desc="Processing songs"):
-        song_name = os.path.basename(song_folder)
-        chunks = process_song(song_folder)
-        if chunks is None or len(chunks) == 0:
-            logging.warning(
-                f"No se generaron chunks para la canción {song_name}. Se omite."
+        for song_folder in tqdm(song_folders, desc="Processing songs"):
+            song_name = os.path.basename(song_folder)
+            chunks = process_song(song_folder)
+            if chunks is None or len(chunks) == 0:
+                logging.warning(
+                    f"No se generaron chunks para la canción {song_name}. Se omite."
+                )
+                continue
+
+            chunks_dict = {}
+            for i, chunk in enumerate(chunks):
+                key = f"chunk_{i:03d}"
+                chunks_dict[key] = chunk
+
+            npz_path = os.path.join(processed_dir, f"{song_name}.npz")
+            np.savez(npz_path, **chunks_dict)
+            logging.info(
+                f"Se guardaron {len(chunks)} chunks para {song_name} en {npz_path}"
             )
-            continue
-
-        chunks_dict = {}
-        for i, chunk in enumerate(chunks):
-            key = f"chunk_{i:03d}"
-            chunks_dict[key] = chunk
-
-        npz_path = os.path.join(processed_dir, f"{song_name}.npz")
-        np.savez(npz_path, **chunks_dict)
-        logging.info(
-            f"Se guardaron {len(chunks)} chunks para {song_name} en {npz_path}"
-        )
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger()
+    logger.handlers = []
+    handler = TqdmLoggingHandler()
+    handler.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(levelname)s: %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
     process_dataset("data/external/train", "data/processed/train")

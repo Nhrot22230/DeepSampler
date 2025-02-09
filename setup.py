@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
+import logging
 import os
 import sys
-import yaml
-import logging
-import requests
 import zipfile
-from tqdm import tqdm
 
+import requests
+import yaml
+from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 

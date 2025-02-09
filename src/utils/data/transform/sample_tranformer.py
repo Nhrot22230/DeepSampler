@@ -7,7 +7,7 @@ class SampleTransformer:
     múltiples transformaciones.
     """
 
-    def __init__(self, transforms: Optional[List[Callable[[Any], Any]]] = None) -> None: # noqa
+    def __init__(self, transforms: Optional[List[Callable[[Any], Any]]] = None) -> None:
         """
         Args:
             transforms (Optional[List[Callable[[Any], Any]]]):

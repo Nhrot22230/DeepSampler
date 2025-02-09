@@ -1,6 +1,7 @@
 from typing import Any, List, Optional
-from torch.utils.data import Dataset
+
 from src.utils.data.transform import SampleTransformer
+from torch.utils.data import Dataset
 
 
 class CustomDataset(Dataset):

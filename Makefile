@@ -61,6 +61,7 @@ lint:
 
 format:
 	@echo "Ejecutando black para formatear el código..."
+	isort --sp configs/.isort.cfg .
 	black .
 
 clean:

@@ -1,0 +1,18 @@
+# environment.yml
+project:
+  name: DeepSampler
+  authors:
+    - name: "Diego Izaguirre"
+      student_id: "A01024053"
+    - name: "Fabian Prado"
+      student_id: "A01024053"
+    - name: "Fernando Candia"
+      student_id: "A01024053"
+  version: "0.0.1"
+  dataset:
+    name: MUSDB18_HQ
+    url: "https://zenodo.org/records/3338373/files/musdb18hq.zip?download=1"
+    paths:
+      raw: "data/raw"
+      external: "data/external"
+      processed: "data/processed"

@@ -4,6 +4,7 @@
 
 import logging
 import os
+from typing import Dict, List
 
 import librosa
 import numpy as np
@@ -16,54 +17,47 @@ CHUNK_DURATION = 5.0  # Duración de cada chunk en segundos
 OVERLAP_FRACTION = 0.2  # Fracción de solapamiento entre chunks
 
 
-def load_and_normalize(file_path: str, sr: int = SR) -> np.ndarray:
+def load_audio(file_path: str, sr: int = SR) -> np.ndarray:
     """
     Carga un archivo de audio y normaliza la señal para que su pico
     máximo sea 1.
     """
     try:
         y, _ = librosa.load(file_path, sr=sr, mono=True)
-        # max_val = np.max(np.abs(y))
-        # if max_val > 0:
-        #     y = y / max_val
         return y
     except Exception as e:
         raise ValueError(f"Error loading {file_path}: {e}")
 
 
-def compute_spectrogram(
-    y: np.ndarray, n_fft: int = N_FFT, hop_length: int = HOP_LENGTH
+def chunk_audio(
+    y: np.ndarray,
+    chunk_duration: float = CHUNK_DURATION,
+    overlap_fraction: float = OVERLAP_FRACTION,
 ) -> np.ndarray:
     """
-    Calcula la STFT, extrae la magnitud y aplica una escala logarítmica.
+    Divide una señal de audio en chunks de duración fija.
     """
-    S_complex = librosa.stft(y, n_fft=n_fft, hop_length=hop_length)
-    S_mag = np.abs(S_complex)
-    return librosa.amplitude_to_db(S_mag, ref=np.max)
+    chunk_samples = int(chunk_duration * SR)
+    overlap_samples = int(chunk_samples * overlap_fraction)
+    hop_samples = chunk_samples - overlap_samples
+    n_chunks = 1 + (len(y) - chunk_samples) // hop_samples
+    chunks = np.zeros((n_chunks, chunk_samples))
 
+    for i in range(n_chunks):
+        start = i * hop_samples
+        end = start + chunk_samples
+        chunks[i] = y[start:end]
 
-def chunk_spectrogram(spec: np.ndarray, chunk_frames: int, overlap_frames: int) -> list:
-    """
-    Divide el espectrograma en chunks a lo largo del eje temporal.
+        # padding zeroes
+        if len(chunks[i]) < chunk_samples:
+            chunks[i] = np.pad(
+                chunks[i], (0, chunk_samples - len(chunks[i])), "constant"
+            )
 
-    Args:
-        spec (np.ndarray): Espectrograma con forma (n_freq, n_time)
-        chunk_frames (int): Número de frames por chunk.
-        overlap_frames (int): Número de frames solapados entre chunks.
-
-    Returns:
-        List[np.ndarray]: Lista de chunks.
-    """
-    chunks = []
-    n_time = spec.shape[1]
-    step = chunk_frames - overlap_frames
-    for start in range(0, n_time - chunk_frames + 1, step):
-        chunk = spec[:, start : start + chunk_frames]
-        chunks.append(chunk)
     return chunks
 
 
-def process_song(song_folder: str, save_dir: str) -> None:
+def process_song(song_folder: str) -> List[Dict[str, np.ndarray]]:
     """
     Procesa una carpeta de canción:
     - Carga y normaliza cada canal (mezcla y 4 stems).
@@ -82,75 +76,82 @@ def process_song(song_folder: str, save_dir: str) -> None:
     other_path = os.path.join(song_folder, "other.wav")
 
     try:
-        mixture_audio = load_and_normalize(mixture_path)
-        drums_audio = load_and_normalize(drums_path)
-        bass_audio = load_and_normalize(bass_path)
-        vocals_audio = load_and_normalize(vocals_path)
-        other_audio = load_and_normalize(other_path)
+        mixture_audio = load_audio(mixture_path)
+        drums_audio = load_audio(drums_path)
+        bass_audio = load_audio(bass_path)
+        vocals_audio = load_audio(vocals_path)
+        other_audio = load_audio(other_path)
     except ValueError as e:
         logging.error(e)
         return
 
-    mixture_spec = compute_spectrogram(mixture_audio)
-    drums_spec = compute_spectrogram(drums_audio)
-    bass_spec = compute_spectrogram(bass_audio)
-    vocals_spec = compute_spectrogram(vocals_audio)
-    other_spec = compute_spectrogram(other_audio)
+    mixture_chunks = chunk_audio(mixture_audio)
+    drums_chunks = chunk_audio(drums_audio)
+    bass_chunks = chunk_audio(bass_audio)
+    vocals_chunks = chunk_audio(vocals_audio)
+    other_chunks = chunk_audio(other_audio)
 
-    n_time = mixture_spec.shape[1]
-    if not (
-        drums_spec.shape[1] == n_time
-        and bass_spec.shape[1] == n_time
-        and vocals_spec.shape[1] == n_time
-        and other_spec.shape[1] == n_time
+    chunk_list: List[Dict[str, np.ndarray]] = []
+
+    for mixture_chunk, drums_chunk, bass_chunk, vocals_chunk, other_chunk in zip(
+        mixture_chunks, drums_chunks, bass_chunks, vocals_chunks, other_chunks
     ):
-        logging.error("Dimensiones temporales inconsistentes en %s.", song_folder)
-        return
-
-    chunk_frames = int(np.ceil(CHUNK_DURATION * SR / HOP_LENGTH))
-    overlap_frames = int(chunk_frames * OVERLAP_FRACTION)
-
-    mixture_chunks = chunk_spectrogram(mixture_spec, chunk_frames, overlap_frames)
-    drums_chunks = chunk_spectrogram(drums_spec, chunk_frames, overlap_frames)
-    bass_chunks = chunk_spectrogram(bass_spec, chunk_frames, overlap_frames)
-    vocals_chunks = chunk_spectrogram(vocals_spec, chunk_frames, overlap_frames)
-    other_chunks = chunk_spectrogram(other_spec, chunk_frames, overlap_frames)
-
-    song_name = os.path.basename(os.path.normpath(song_folder))
-    os.makedirs(save_dir, exist_ok=True)
-    num_chunks = min(
-        len(mixture_chunks),
-        len(drums_chunks),
-        len(bass_chunks),
-        len(vocals_chunks),
-        len(other_chunks),
-    )
-
-    for i in range(num_chunks):
-        data_dict = {
-            "mixture": mixture_chunks[i],
-            "drums": drums_chunks[i],
-            "bass": bass_chunks[i],
-            "vocals": vocals_chunks[i],
-            "other": other_chunks[i],
+        chunk_dict = {
+            "mixture": mixture_chunk,
+            "drums": drums_chunk,
+            "bass": bass_chunk,
+            "vocals": vocals_chunk,
+            "other": other_chunk,
         }
-        save_path = os.path.join(save_dir, f"{song_name}_chunk_{i}.npy")
-        np.save(save_path, data_dict)
+        chunk_list.append(chunk_dict)
+
+    return chunk_list
 
 
 def process_dataset(root_dir: str, processed_dir: str) -> None:
     """
-    Itera sobre todas las carpetas de canciones en el dataset de entrenamiento
-    y aplica el preprocesamiento a cada una.
+    Itera sobre todas las carpetas de canciones en el dataset de entrenamiento,
+    aplica el preprocesamiento a cada una y almacena los chunks extraídos en un único
+    archivo NPZ.
+
+    Cada archivo NPZ contendrá múltiples arrays, uno por cada chunk, con claves del tipo:
+        "chunk_000", "chunk_001", ...
+
+    Args:
+        root_dir (str): Ruta al directorio raíz con las carpetas de canciones.
+        processed_dir (str): Ruta al directorio donde se almacenarán los archivos NPZ.
     """
+
     song_folders = [
         os.path.join(root_dir, d)
         for d in os.listdir(root_dir)
         if os.path.isdir(os.path.join(root_dir, d))
     ]
 
-    for song_folder in tqdm(song_folders, desc="Procesando canciones"):
-        process_song(song_folder, processed_dir)
+    if not os.path.exists(processed_dir):
+        os.makedirs(processed_dir)
+    else:
+        logging.warning(f"El directorio {processed_dir} ya existe. Se sobreescribirá.")
+
+    for song_folder in tqdm(song_folders, desc="Processing songs"):
+        song_name = os.path.basename(song_folder)
+        chunks = process_song(song_folder)
+        if chunks is None or len(chunks) == 0:
+            logging.warning(
+                f"No se generaron chunks para la canción {song_name}. Se omite."
+            )
+            continue
+
+        chunks_dict = {}
+        for i, chunk in enumerate(chunks):
+            key = f"chunk_{i:03d}"
+            chunks_dict[key] = chunk
+
+        npz_path = os.path.join(processed_dir, f"{song_name}.npz")
+        np.savez(npz_path, **chunks_dict)
+        logging.info(
+            f"Se guardaron {len(chunks)} chunks para {song_name} en {npz_path}"
+        )
 
 
 if __name__ == "__main__":

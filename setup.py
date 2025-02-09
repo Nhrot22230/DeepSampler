@@ -8,7 +8,6 @@ import zipfile
 from tqdm import tqdm
 
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='[%(levelname)s] %(message)s'
@@ -54,9 +53,8 @@ def download_dataset(url, dest_path, dataset_name):
         response = requests.get(url, stream=True)
         response.raise_for_status()
 
-        # Get the total size from the Content-Length header (if available)
         total_size = int(response.headers.get('content-length', 0))
-        block_size = 8192  # Size of each chunk
+        block_size = 8192
 
         with open(zip_filename, "wb") as f:
             with tqdm(total=total_size, unit='B', unit_scale=True, desc=f"Downloading {dataset_name}", ncols=80) as progress_bar:
@@ -68,8 +66,6 @@ def download_dataset(url, dest_path, dataset_name):
     except Exception as e:
         logging.error("Failed to download dataset: %s", str(e))
         sys.exit(1)
-
-    return zip_filename
 
     return zip_filename
 
@@ -89,7 +85,6 @@ def extract_dataset(zip_filepath, extract_to):
 
 
 def main():
-    # Load configuration
     config = load_config("environment.yml")
     try:
         project_config = config["project"]
@@ -105,17 +100,14 @@ def main():
         logging.error("Missing key in configuration: %s", str(e))
         sys.exit(1)
 
-    # Create required directories
     create_directories({
         "raw": raw_path,
         "external": external_path,
         "processed": processed_path
     })
 
-    # Download dataset into the raw folder
     zip_filepath = download_dataset(dataset_url, raw_path, dataset_name)
 
-    # Extract the dataset into the external folder
     extract_dataset(zip_filepath, external_path)
 
     logging.info("Setup completed successfully.")

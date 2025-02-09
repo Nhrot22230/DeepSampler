@@ -12,8 +12,8 @@ from tqdm import tqdm
 SR = 44100  # Frecuencia de muestreo
 N_FFT = 2048  # Tamaño de la FFT
 HOP_LENGTH = 512  # Hop length para la STFT
-CHUNK_DURATION = 2.0  # Duración de cada chunk en segundos
-OVERLAP_FRACTION = 0.5  # Fracción de solapamiento entre chunks
+CHUNK_DURATION = 5.0  # Duración de cada chunk en segundos
+OVERLAP_FRACTION = 0.2  # Fracción de solapamiento entre chunks
 
 
 def load_and_normalize(file_path: str, sr: int = SR) -> np.ndarray:
@@ -137,8 +137,6 @@ def process_song(song_folder: str, save_dir: str) -> None:
         }
         save_path = os.path.join(save_dir, f"{song_name}_chunk_{i}.npy")
         np.save(save_path, data_dict)
-
-    logging.info("Procesada canción: %s | Chunks generados: %d", song_name, num_chunks)
 
 
 def process_dataset(root_dir: str, processed_dir: str) -> None:

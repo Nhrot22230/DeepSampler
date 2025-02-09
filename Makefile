@@ -72,5 +72,5 @@ clean:
 
 clean-data:
 	@echo "Limpiando archivos de data procesada..."
-	@rm -rf data/
+	@rm -rf data/processed/*
 	@echo "Limpieza completada."

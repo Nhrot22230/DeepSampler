@@ -151,3 +151,56 @@ class Trainer:
             avg_loss = self.train_epoch()
             self.logger.info(f"Epoch {epoch + 1}/{epochs} - Loss: {avg_loss:.4f}")
             print(f"Epoch {epoch + 1}/{epochs} - Loss: {avg_loss:.4f}")
+
+    def validate(
+        self,
+        dataset: torch.utils.data.Dataset,
+        batch_size: int = 32,
+        num_workers: int = 0,
+    ) -> None:
+        """
+        Validates the model on a given dataset.
+
+        Args:
+            dataset (torch.utils.data.Dataset): The validation dataset.
+            batch_size (int): Batch size.
+            num_workers (int): Number of processes for loading data.
+        """
+        self.model.eval()
+        dataloader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            collate_fn=collate_dict,
+            shuffle=False,
+        )
+
+        total_loss = 0.0
+        num_batches = 0
+
+        with torch.no_grad():
+            for batch in tqdm(dataloader, desc="Validation batches", leave=False):
+                batch = {key: value.to(self.device) for key, value in batch.items()}
+
+                inputs = batch["mixture"]
+                targets = {k: v for k, v in batch.items() if k != "mixture"}
+
+                outputs = self.model(inputs)
+
+                if outputs.size(1) != len(self.target_keys):
+                    raise ValueError(
+                        f"Output channels ({outputs.size(1)}) do not match "
+                        f"the number of target keys ({len(self.target_keys)})."
+                    )
+
+                loss = 0.0
+                for i, key in enumerate(self.target_keys):
+                    loss += self.loss_fn(outputs[:, i, :, :], targets[key])
+                loss = loss / len(self.target_keys)
+
+                total_loss += loss.item()
+                num_batches += 1
+
+        avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
+        self.logger.info(f"Validation Loss: {avg_loss:.4f}")
+        print(f"Validation Loss: {avg_loss:.4f}")

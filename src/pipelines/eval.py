@@ -215,14 +215,13 @@ if __name__ == "__main__":
     # For example, assume your model is an instance of SimpleUNet:
 
     # Adjust the parameters if needed:
-    model = SimpleUNet(
-        input_channels=1, output_channels=4, base_channels=64, depth=4, dropout_prob=0.3
-    )
+    model = SimpleUNet(input_channels=1, output_channels=4, depth=1)
+
     # Load model weights (adjust the path accordingly)
-    checkpoint_path = "experimets/results/simple_unet.pth"
+    checkpoint_path = "experiments/results/simple_unet.pth"
     model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"))
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     model.to(device)
 
     reconstructed = inference_pipeline(

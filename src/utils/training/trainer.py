@@ -1,6 +1,7 @@
+from typing import Callable, Dict, List
+
 import torch
 from torch.utils.data import DataLoader
-from typing import Dict, List, Callable
 
 
 def collate_dict(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:

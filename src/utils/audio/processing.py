@@ -171,9 +171,6 @@ def apply_stft_inverse(
     return audio
 
 
-# Transformaciones adicionales comúnmente usadas
-
-
 def apply_mel_spectrogram(
     sample: np.ndarray,
     sr: int = SR,

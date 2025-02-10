@@ -1,7 +1,7 @@
 from typing import Any, Callable, List, Optional
 
 
-class SampleTransformer:
+class TransformChain:
     """
     Clase para transformar una muestra. Permite encadenar
     múltiples transformaciones.

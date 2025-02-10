@@ -1,12 +1,12 @@
 from typing import Any, List, Optional
 
-from src.utils.data.transform import SampleTransformer
+from src.utils.data.transforms import TransformChain
 from torch.utils.data import Dataset
 
 
-class SoundDataset(Dataset):
+class AudioDataset(Dataset):
     def __init__(
-        self, data: List[Any], transform: Optional[SampleTransformer] = None
+        self, data: List[Any], transform: Optional[TransformChain] = None
     ) -> None:
         """
         Dataset genérico con tipado fuerte y estructura modular.
@@ -17,7 +17,7 @@ class SoundDataset(Dataset):
             transformaciones a cada muestra.
         """
         super().__init__()
-        self.transform: Optional[SampleTransformer] = transform
+        self.transform: Optional[TransformChain] = transform
         self.samples: List[Any] = data
 
     def __len__(self) -> int:

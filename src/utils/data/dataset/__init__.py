@@ -1,2 +1,2 @@
 # flake8: noqa
-from src.utils.data.dataset.custom_dataset import CustomDataset
+from src.utils.data.dataset.sound_dataset import SoundDataset

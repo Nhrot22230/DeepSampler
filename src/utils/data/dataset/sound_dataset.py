@@ -4,7 +4,7 @@ from src.utils.data.transform import SampleTransformer
 from torch.utils.data import Dataset
 
 
-class CustomDataset(Dataset):
+class SoundDataset(Dataset):
     def __init__(
         self, data: List[Any], transform: Optional[SampleTransformer] = None
     ) -> None:

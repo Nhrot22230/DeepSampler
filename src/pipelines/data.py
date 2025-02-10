@@ -6,8 +6,8 @@ import logging
 import os
 from typing import Dict, List
 
-import librosa
 import numpy as np
+from src.utils.audio.processing import chunk_audio, load_audio
 from tqdm import tqdm
 
 SR = 44100  # Frecuencia de muestreo
@@ -33,46 +33,6 @@ class TqdmLoggingHandler(logging.Handler):
             self.flush()
         except Exception:
             self.handleError(record)
-
-
-def load_audio(file_path: str, sr: int = SR) -> np.ndarray:
-    """
-    Carga un archivo de audio y normaliza la señal para que su pico
-    máximo sea 1.
-    """
-    try:
-        y, _ = librosa.load(file_path, sr=sr, mono=True)
-        return y
-    except Exception as e:
-        raise ValueError(f"Error loading {file_path}: {e}")
-
-
-def chunk_audio(
-    y: np.ndarray,
-    chunk_duration: float = CHUNK_DURATION,
-    overlap_fraction: float = OVERLAP_FRACTION,
-) -> np.ndarray:
-    """
-    Divide una señal de audio en chunks de duración fija.
-    """
-    chunk_samples = int(chunk_duration * SR)
-    overlap_samples = int(chunk_samples * overlap_fraction)
-    hop_samples = chunk_samples - overlap_samples
-    n_chunks = 1 + (len(y) - chunk_samples) // hop_samples
-    chunks = np.zeros((n_chunks, chunk_samples))
-
-    for i in range(n_chunks):
-        start = i * hop_samples
-        end = start + chunk_samples
-        chunks[i] = y[start:end]
-
-        # padding zeroes
-        if len(chunks[i]) < chunk_samples:
-            chunks[i] = np.pad(
-                chunks[i], (0, chunk_samples - len(chunks[i])), "constant"
-            )
-
-    return chunks
 
 
 def process_song(song_folder: str) -> List[Dict[str, np.ndarray]]:

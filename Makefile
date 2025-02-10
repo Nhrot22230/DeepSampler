@@ -11,7 +11,7 @@
 #
 # =============================================================================
 
-.PHONY: help init pipe-data pipe-train test format install freeze docs clean clean-data clean-all
+.PHONY: help init pipe-data pipe-train pipe-eval test format install freeze docs clean clean-data clean-all
 
 PYTHON ?= python3
 PIP    ?= pip3
@@ -20,6 +20,7 @@ SETUP_SCRIPT      := setup.py
 SRC_DIR           := src
 PIPELINE_DATA     := $(SRC_DIR)/pipelines/data.py
 PIPELINE_TRAIN    := $(SRC_DIR)/pipelines/train.py
+PIPELINE_EVAL     := $(SRC_DIR)/pipelines/eval.py
 TESTS_DIR         := tests
 REQUIREMENTS_FILE := requirements.txt
 VENV_DIR          := venv
@@ -51,6 +52,10 @@ pipe-data:
 pipe-train:
 	@echo "Ejecutando pipeline de entrenamiento..."
 	$(PYTHON) $(PIPELINE_TRAIN)
+
+pipe-eval:
+	@echo "Ejecutando pipeline de evaluación..."
+	$(PYTHON) $(PIPELINE_EVAL) --mixture data/external/train/Actions\ -\ Devil\'s\ Words/mixture.wav --output_dir experiments/results/
 
 test:
 	@echo "Ejecutando tests..."

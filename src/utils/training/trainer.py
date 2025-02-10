@@ -149,7 +149,6 @@ class Trainer:
         self.logger.info(f"Starting training for {epochs} epochs.")
         for epoch in range(epochs):
             avg_loss = self.train_epoch()
-            self.logger.info(f"Epoch {epoch + 1}/{epochs} - Loss: {avg_loss:.4f}")
             print(f"Epoch {epoch + 1}/{epochs} - Loss: {avg_loss:.4f}")
 
     def validate(

@@ -1,3 +1,4 @@
+import torch
 from typing import Dict
 
 import numpy as np
@@ -48,4 +49,20 @@ class AudioSample:
             "bass": self.bass,
             "vocals": self.vocals,
             "other": self.other,
+        }
+
+    def to_tensor(self) -> Dict[str, torch.Tensor]:
+        """
+        Convierte la instancia en un diccionario de tensores.
+
+        Returns:
+            Dict[str, torch.Tensor]: Diccionario con claves "mixture", "drums", "bass",
+            "vocals" y "other".
+        """
+        return {
+            "mixture": torch.from_numpy(self.mixture),
+            "drums": torch.from_numpy(self.drums),
+            "bass": torch.from_numpy(self.bass),
+            "vocals": torch.from_numpy(self.vocals),
+            "other": torch.from_numpy(self.other),
         }

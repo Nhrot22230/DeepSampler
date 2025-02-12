@@ -2,9 +2,9 @@
 from src.utils.audio.audio_sample import AudioSample
 from src.utils.audio.processing import (
     add_white_noise,
+    apply_istft,
     apply_mel_spectrogram,
     apply_stft,
-    apply_stft_inverse,
     chunk_audio,
     load_audio,
     merge_frequency_bands,

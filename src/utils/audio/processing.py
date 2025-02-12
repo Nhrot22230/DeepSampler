@@ -149,9 +149,7 @@ def merge_frequency_bands(bands: dict) -> np.ndarray:
     return merged
 
 
-def apply_stft_inverse(
-    spectrogram: np.ndarray, hop_length: int = HOP_LENGTH
-) -> np.ndarray:
+def apply_istft(spectrogram: np.ndarray, hop_length: int = HOP_LENGTH) -> np.ndarray:
     """
     Aplica la transformada inversa de la STFT a un espectrograma y retorna el audio
     reconstruido.

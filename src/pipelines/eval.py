@@ -1,137 +1,83 @@
 import argparse
 import os
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
 import librosa
 import numpy as np
 import torch
 import torchaudio
 from src.models.u_net import SimpleUNet
+from src.utils.audio import chunk_audio, load_audio
+from tqdm import tqdm
 
-# Inference STFT parameters (should match training)
-STFT_PARAMS = {
-    "n_fft": 2048,
-    "hop_length": 512,
-}
-
-SR = 44100  # Sampling rate (should match training)
-
-
-def load_mixture(mixture_path: str, sr: int = SR) -> np.ndarray:
-    """
-    Loads a mixture.wav file, converting it to mono if necessary.
-
-    Args:
-        mixture_path (str): Path to the mixture.wav file.
-        sr (int): Sampling rate.
-
-    Returns:
-        np.ndarray: 1D numpy array containing the audio waveform.
-    """
-    y, _ = librosa.load(mixture_path, sr=sr, mono=True)
-    return y
-
-
-def compute_complex_stft(
-    waveform: np.ndarray, n_fft: int, hop_length: int
-) -> torch.Tensor:
-    """
-    Computes the complex-valued STFT of a waveform using torchaudio.
-
-    Args:
-        waveform (np.ndarray): 1D audio waveform.
-        n_fft (int): FFT window size.
-        hop_length (int): Hop length.
-
-    Returns:
-        torch.Tensor: Complex-valued STFT with shape [1, F, T].
-    """
-    # Convert waveform to tensor and add batch dimension
-    waveform_tensor = torch.tensor(waveform).unsqueeze(0)  # shape: [1, T]
-    # Use torchaudio's Spectrogram with power=None to obtain complex numbers.
-    # (If using torchaudio >= 0.7, you can set return_complex=True.)
-    stft_transform = torchaudio.transforms.Spectrogram(
-        n_fft=n_fft,
-        hop_length=hop_length,
-        power=None,  # returns complex-valued spectrogram
-    )
-    complex_spec = stft_transform(waveform_tensor)  # shape: [1, F, T]
-    return complex_spec
+SR = 44100  # Frecuencia de muestreo
+N_FFT = 2048  # Tamaño de la FFT
+HOP_LENGTH = 512  # Hop length para la STFT
+CHUNK_DURATION = 5.0  # Duración de cada chunk en segundos
 
 
 def prepare_model_input(
-    complex_spec: torch.Tensor, n_fft: int, hop_length: int
-) -> torch.Tensor:
+    complex_spec: torch.Tensor,
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Prepares the model input by converting the magnitude to dB.
+    A partir del STFT complejo, extrae la magnitud y la fase, convierte la magnitud a dB
+    y prepara el tensor de entrada para el modelo (añadiendo una dimensión de canal).
 
     Args:
-        complex_spec (torch.Tensor): Complex STFT, shape [1, F, T].
-        n_fft (int): FFT window size.
-        hop_length (int): Hop length.
+        complex_spec (torch.Tensor): STFT complejo de forma [1, F, T].
 
     Returns:
-        torch.Tensor: Model input with shape [1, 1, F, T] (dB magnitude).
+        model_input (torch.Tensor): Tensor de entrada con forma [1, 1, F, T] (mag en dB).
+        phase (torch.Tensor): Fase del espectrograma, de forma [1, F, T].
     """
-    # Extract magnitude and phase
     magnitude = torch.abs(complex_spec)  # [1, F, T]
     phase = torch.angle(complex_spec)  # [1, F, T]
 
-    # Convert magnitude to dB
     amp_to_db = torchaudio.transforms.AmplitudeToDB(top_db=80)
     magnitude_db = amp_to_db(magnitude)  # [1, F, T]
 
-    # The model was trained with a single input channel; add channel dim.
-    model_input = magnitude_db.unsqueeze(1)  # shape: [1, 1, F, T]
+    model_input = magnitude_db.unsqueeze(1)  # [1, 1, F, T]
     return model_input, phase
 
 
-def reconstruct_waveforms(
-    model_outputs: torch.Tensor,
-    mixture_phase: torch.Tensor,
-    stft_params: Dict[str, int],
-    waveform_length: int,
-) -> Dict[str, np.ndarray]:
+def reconstruct_chunk(
+    outputs: torch.Tensor, phase: torch.Tensor, chunk_length: int
+) -> List[np.ndarray]:
     """
-    Reconstructs audio waveforms for each separated source by combining the estimated
-    magnitude (converted from dB to linear) with the original mixture phase.
+    Reconstruye la forma de onda para un chunk dado la salida del modelo y la fase.
 
     Args:
-        model_outputs (torch.Tensor): Model output tensor of shape [1, out_channels, F, T]
-          in dB.
-        mixture_phase (torch.Tensor): Mixture phase, shape [1, F, T].
-        stft_params (Dict[str, int]): Dictionary with keys "n_fft" and "hop_length".
-        waveform_length (int): Desired length of the reconstructed waveform.
+        outputs (torch.Tensor): Salida del modelo de forma [1, out_channels, F, T] en dB.
+        phase (torch.Tensor): Fase del chunk, forma [1, F, T].
+        chunk_length (int): Número de muestras en el chunk.
 
     Returns:
-        Dict[str, np.ndarray]: Dictionary mapping source names (e.g., "vocal", "drum")
-                               to reconstructed waveforms.
+        List[np.ndarray]: Lista con la forma de onda reconstruida para cada fuente.
     """
-    # Assume model_outputs is on CPU and shape [1, out_channels, F, T]
-    outputs_db = model_outputs.squeeze(0).cpu().numpy()  # shape: [out_channels, F, T]
-    # Convert from dB to linear amplitude
+    # Eliminar la dimensión de batch: [out_channels, F, T]
+    outputs_db = outputs.squeeze(0).cpu().numpy()
+    # Convertir de dB a amplitud lineal
     outputs_linear = librosa.db_to_amplitude(
         outputs_db, ref=1.0
-    )  # shape: [out_channels, F, T]
+    )  # [out_channels, F, T]
+    phase_np = phase.squeeze(0).cpu().numpy()  # [F, T]
 
-    # Get the mixture phase as a numpy array
-    phase = mixture_phase.squeeze(0).cpu().numpy()  # shape: [F, T]
-
-    # Define source names for each channel; adjust as needed.
-    source_names = ["vocal", "drum", "bass", "other"]
-    reconstructed = {}
-    for i, source in enumerate(source_names):
-        # Multiply the estimated magnitude by the phase to obtain a complex spectrogram
-        estimated_complex = outputs_linear[i] * np.exp(1j * phase)
-        # Inverse STFT using librosa; ensure that the output length m
-        # atches the original waveform length
-        reconstructed_waveform = librosa.istft(
-            estimated_complex,
-            hop_length=stft_params["hop_length"],
-            length=waveform_length,
+    num_channels = outputs_linear.shape[0]
+    reconstructed = []
+    for i in range(num_channels):
+        # Estimar el espectrograma complejo multiplicando la mag estimada por exp(j*fase)
+        complex_spec_est = outputs_linear[i] * np.exp(1j * phase_np)
+        # Reconstruir el audio con ISTFT; se fuerza la longitud del chunk
+        waveform = librosa.istft(
+            complex_spec_est, hop_length=HOP_LENGTH, length=chunk_length
         )
-        reconstructed[source] = reconstructed_waveform
+        reconstructed.append(waveform)
     return reconstructed
+
+
+# -------------------------------
+# Pipeline de Inferencia Completo
+# -------------------------------
 
 
 def inference_pipeline(
@@ -140,62 +86,87 @@ def inference_pipeline(
     stft_params: Dict[str, int],
     device: torch.device,
     output_dir: Optional[str] = None,
-) -> None:
+    chunk_duration: float = CHUNK_DURATION,
+) -> Dict[str, np.ndarray]:
     """
-    Complete inference pipeline: loads a mixture, processes it through the model,
-    reconstructs separated audio signals, and optionally saves the results to WAV files.
+    Pipeline de inferencia completo para la separación de fuentes:
+      1. Carga el audio (mixture.wav).
+      2. Divide el audio en chunks sin solapamiento.
+      3. Procesa cada chunk a través del modelo.
+      4. Para cada chunk, se obtienen 4 salidas (una por fuente).
+      5. Se reconstruye cada chunk mediante ISTFT y se concatenan los chunks por fuente.
+      6. Se guardan los resultados en el directorio de salida.
 
     Args:
-        model (torch.nn.Module): Trained model.
-        mixture_path (str): Path to the mixture.wav file.
-        stft_params (Dict[str, int]): STFT parameters (n_fft and hop_length).
-        device (torch.device): Device on which to run inference.
-        output_dir (Optional[str]): If provided, saves the reconstructed sources as WAV.
+        model (torch.nn.Module): Modelo entrenado.
+        mixture_path (str): Ruta al archivo mixture.wav.
+        stft_params (Dict[str, int]): Parámetros STFT (n_fft, hop_length).
+        device (torch.device): Dispositivo para inferencia.
+        output_dir (Optional[str]): Directorio para guardar las fuentes reconstruidas.
+        chunk_duration (float): Duración de cada chunk en segundos.
+
+    Returns:
+        Dict[str, np.ndarray]: Diccionario que mapea nombres de fuente a la forma de onda
+        reconstruida.
     """
-    # Load mixture waveform
-    mixture = load_mixture(mixture_path, sr=SR)
-    waveform_length = len(mixture)
+    # 1. Cargar el audio
+    mixture = load_audio(mixture_path, sr=SR)
 
-    # Compute complex STFT of the mixture to obtain phase information
-    complex_spec = compute_complex_stft(
-        mixture, stft_params["n_fft"], stft_params["hop_length"]
-    )
+    # 2. Dividir el audio en chunks sin overlapping
+    chunks = chunk_audio(mixture, chunk_duration=chunk_duration, sr=SR)
+    print(f"Total chunks: {len(chunks)}")
 
-    # Prepare the model input (convert magnitude to dB, add channel dimension)
-    model_input, phase = prepare_model_input(
-        complex_spec, stft_params["n_fft"], stft_params["hop_length"]
-    )
-    model_input = model_input.to(device)
+    # Inicializar contenedores para cada fuente
+    source_names = ["vocal", "drum", "bass", "other"]
+    reconstructed_chunks = {name: [] for name in source_names}
 
-    # Set model to evaluation mode and run inference
     model.eval()
     with torch.no_grad():
-        outputs = model(model_input)  # Expected shape: [1, out_channels, F, T]
+        # Procesar cada chunk individualmente
+        for chunk in tqdm(chunks, desc="Processing chunks"):
+            # 3. Calcular la STFT compleja del chunk
+            complex_spec = librosa.stft(
+                chunk, n_fft=stft_params["n_fft"], hop_length=stft_params["hop_length"]
+            )
+            complex_spec = torch.tensor(complex_spec, dtype=torch.complex64).unsqueeze(
+                0
+            )  # [1, F, T]
+            # 4. Preparar la entrada para el modelo y obtener la fase
+            model_input, phase = prepare_model_input(complex_spec)
+            model_input = model_input.to(device)
+            # 5. Ejecutar inferencia: se espera salida de forma [1, out_channels, F, T]
+            outputs = model(model_input)
+            # 6. Reconstruir el chunk para cada fuente
+            rec_chunks = reconstruct_chunk(outputs, phase, chunk_length=len(chunk))
+            for i, name in enumerate(source_names):
+                reconstructed_chunks[name].append(rec_chunks[i])
 
-    # Reconstruct separated waveforms by combining model output (converted back to linear)
-    reconstructed_sources = reconstruct_waveforms(
-        outputs, phase, stft_params, waveform_length
-    )
+    # 7. Concatenar todos los chunks para cada fuente a lo largo del tiempo
+    full_reconstructed = {
+        name: np.concatenate(reconstructed_chunks[name]) for name in source_names
+    }
 
-    # Optionally, save the outputs as WAV files
+    # 8. Guardar resultados si se especifica output_dir
     if output_dir is not None:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        for source, waveform in reconstructed_sources.items():
-            output_path = os.path.join(output_dir, f"{source}.wav")
+        for name, waveform in full_reconstructed.items():
+            output_path = os.path.join(output_dir, f"{name}.wav")
+            # Convertir a tensor con dimensión de batch y guardar usando torchaudio.save
             torchaudio.save(
                 output_path, torch.tensor(waveform).unsqueeze(0), sample_rate=SR
             )
-            print(f"Saved reconstructed {source} to {output_path}")
+            print(f"Saved {name} to {output_path}")
     else:
-        # Otherwise, simply print a message and/or play the audio (if desired)
-        for source in reconstructed_sources:
-            print(f"Reconstructed source: {source}")
+        for name in full_reconstructed:
+            print(f"Reconstructed source: {name}")
 
-    return reconstructed_sources
+    return full_reconstructed
 
 
-# Example usage:
+# -------------------------------
+# Ejecución del pipeline de inferencia
+# -------------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Inference pipeline for audio source separation."
@@ -209,20 +180,23 @@ if __name__ == "__main__":
         default="results",
         help="Directory to save separated sources",
     )
+    parser.add_argument(
+        "--chunk_duration", type=float, default=5.0, help="Chunk duration in seconds"
+    )
     args = parser.parse_args()
 
-    # Load your trained model (this assumes you have a checkpoint and model definition)
-    # For example, assume your model is an instance of SimpleUNet:
+    # Cargar el modelo entrenado (asegúrate de ajustar los parámetros y el checkpoint)
 
-    # Adjust the parameters if needed:
+    # Inicializar el modelo con parámetros que coincidan con el entrenamiento
     model = SimpleUNet(input_channels=1, output_channels=4, depth=1)
-
-    # Load model weights (adjust the path accordingly)
     checkpoint_path = "experiments/results/simple_unet.pth"
     model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"))
 
-    device = torch.device("cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
+
+    # Parámetros STFT
+    STFT_PARAMS = {"n_fft": N_FFT, "hop_length": HOP_LENGTH}
 
     reconstructed = inference_pipeline(
         model=model,
@@ -230,4 +204,5 @@ if __name__ == "__main__":
         stft_params=STFT_PARAMS,
         device=device,
         output_dir=args.output_dir,
+        chunk_duration=args.chunk_duration,
     )

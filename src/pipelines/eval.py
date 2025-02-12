@@ -189,7 +189,7 @@ if __name__ == "__main__":
 
     # Inicializar el modelo con parámetros que coincidan con el entrenamiento
     model = SimpleUNet(input_channels=1, output_channels=4, depth=1)
-    checkpoint_path = "experiments/results/simple_unet.pth"
+    checkpoint_path = "checkpoints/simple_unet.pth"
     model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

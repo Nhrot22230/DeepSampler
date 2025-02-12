@@ -1,20 +1,11 @@
 import os
 import sys
-from typing import List, TypedDict
+from typing import List
 from tqdm import tqdm
 import torch
 from sklearn.model_selection import train_test_split
 
-from src.utils.audio import load_audio, chunk_waveform
-
-
-class AudioChunk(TypedDict):
-    mixture: torch.Tensor
-    bass: torch.Tensor
-    drums: torch.Tensor
-    other: torch.Tensor
-    vocals: torch.Tensor
-
+from src.utils.audio import load_audio, chunk_waveform, AudioChunk
 
 project_root = os.getcwd()
 while "src" not in os.listdir(project_root):

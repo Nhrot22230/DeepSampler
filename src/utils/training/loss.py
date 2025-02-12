@@ -1,5 +1,6 @@
 import torch
-import torch.nn.functional as F
+from typing import Callable
+
 
 def si_sdr_loss(
     pred_spec: torch.Tensor,
@@ -7,8 +8,8 @@ def si_sdr_loss(
     n_fft: int = 512,
     hop_length: int = 256,
     win_length: int = 512,
-    window_fn = torch.hann_window,
-    eps: float = 1e-8
+    window_fn: Callable = torch.hann_window,
+    eps: float = 1e-8,
 ) -> torch.Tensor:
     """
     Calcula el SI-SDR entre una señal predicha y una real, partiendo de
@@ -50,9 +51,12 @@ def si_sdr_loss(
     #
     # Aquí asumimos que pred_spec y real_spec ya son tensores complejos.
     # ------------------------------------------------
-    
+
     if not pred_spec.is_complex() or not real_spec.is_complex():
-        raise ValueError("Los espectrogramas deben ser tensores complejos (torch.cfloat o torch.cdouble).")
+        raise ValueError(
+            "Los espectrogramas deben ser tensores complejos \
+                (torch.cfloat o torch.cdouble)."
+        )
 
     # ------------------------------------------------
     # 2) Inversa de STFT para recuperar la señal de audio
@@ -60,7 +64,7 @@ def si_sdr_loss(
     # Suponiendo dimensiones: [batch, freq, time] o similar.
     # Ajusta las dimensiones según tu caso de uso.
     # ------------------------------------------------
-    
+
     device = pred_spec.device
     window = window_fn(win_length, periodic=False, device=device)
 
@@ -71,7 +75,7 @@ def si_sdr_loss(
         hop_length=hop_length,
         win_length=win_length,
         window=window,
-        center=True
+        center=True,
     )
     real_audio = torch.istft(
         real_spec,
@@ -79,7 +83,7 @@ def si_sdr_loss(
         hop_length=hop_length,
         win_length=win_length,
         window=window,
-        center=True
+        center=True,
     )
 
     # ------------------------------------------------
@@ -104,7 +108,7 @@ def si_sdr_loss(
 
     # Producto punto y norm
     dot = torch.sum(pred_audio * real_audio, dim=1, keepdim=True)  # <x_hat, x>
-    norm_x = torch.sum(real_audio ** 2, dim=1, keepdim=True)       # ||x||^2
+    norm_x = torch.sum(real_audio**2, dim=1, keepdim=True)  # ||x||^2
 
     # Evitar división por cero
     alpha = dot / (norm_x + eps)  # Escala
@@ -112,12 +116,11 @@ def si_sdr_loss(
     e_noise = pred_audio - s_target
 
     # Potencias
-    target_power = torch.sum(s_target ** 2, dim=1, keepdim=True)   # ||s_target||^2
-    noise_power = torch.sum(e_noise ** 2, dim=1, keepdim=True)     # ||e_noise||^2
+    target_power = torch.sum(s_target**2, dim=1, keepdim=True)  # ||s_target||^2
+    noise_power = torch.sum(e_noise**2, dim=1, keepdim=True)  # ||e_noise||^2
 
     si_sdr_linear = (target_power + eps) / (noise_power + eps)
     si_sdr_db = 10 * torch.log10(si_sdr_linear + eps)
 
     # Retornamos el promedio para todo el batch
     return si_sdr_db.mean()
-

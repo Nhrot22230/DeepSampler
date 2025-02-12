@@ -1,123 +1,123 @@
 import torch
-
-
-def compute_snr(
-    target: torch.Tensor, estimate: torch.Tensor, eps: float = 1e-8
-) -> torch.Tensor:
-    """
-    Calcula el Signal-to-Noise Ratio (SNR) en decibelios.
-
-    La fórmula utilizada es:
-        SNR = 10 * log10 ( ||target||^2 / ||target - estimate||^2 )
-
-    Args:
-        target (torch.Tensor): Señal objetivo, tensor de forma (..., T).
-        estimate (torch.Tensor): Señal estimada, tensor de forma (..., T).
-        eps (float): Pequeño valor para estabilidad numérica.
-
-    Returns:
-        torch.Tensor: Tensor con el SNR calculado para cada elemento del batch.
-    """
-    noise = target - estimate
-    snr_val = 10 * torch.log10(
-        (torch.sum(target**2, dim=-1) + eps) / (torch.sum(noise**2, dim=-1) + eps)
-    )
-    return snr_val
-
-
-def compute_si_sdr(
-    target: torch.Tensor, estimate: torch.Tensor, eps: float = 1e-8
-) -> torch.Tensor:
-    """
-    Calcula el Scale-Invariant Signal-to-Distortion Ratio (SI-SDR) en decibelios.
-
-    Para hacerlo, se centra (se resta la media) tanto la señal objetivo como la estimada,
-    se calcula el factor de escalado óptimo y se computa la relación entre la energía del
-    proyección de la señal objetivo y la energía del error.
-
-    Args:
-        target (torch.Tensor): Señal objetivo, tensor de forma (..., T).
-        estimate (torch.Tensor): Señal estimada, tensor de forma (..., T).
-        eps (float): Pequeño valor para estabilidad numérica.
-
-    Returns:
-        torch.Tensor: Tensor con el SI-SDR calculado para cada elemento del batch.
-    """
-    # Restar la media para hacer las señales de cero-media
-    target_zero_mean = target - torch.mean(target, dim=-1, keepdim=True)
-    estimate_zero_mean = estimate - torch.mean(estimate, dim=-1, keepdim=True)
-
-    # Calcular el factor de escalado óptimo
-    scale = torch.sum(target_zero_mean * estimate_zero_mean, dim=-1, keepdim=True) / (
-        torch.sum(target_zero_mean**2, dim=-1, keepdim=True) + eps
-    )
-    projection = scale * target_zero_mean
-    noise = estimate_zero_mean - projection
-    si_sdr_val = 10 * torch.log10(
-        (torch.sum(projection**2, dim=-1) + eps) / (torch.sum(noise**2, dim=-1) + eps)
-    )
-    return si_sdr_val
-
-
-def compute_sdr(
-    target: torch.Tensor, estimate: torch.Tensor, eps: float = 1e-8
-) -> torch.Tensor:
-    """
-    Calcula el Scale-Dependent Signal-to-Distortion Ratio (SDR) en decibelios.
-
-    A diferencia del SI-SDR, en este caso no se centra (no se sustrae la media),
-    lo que hace que la métrica dependa de la escala de la señal.
-
-    Args:
-        target (torch.Tensor): Señal objetivo, tensor de forma (..., T).
-        estimate (torch.Tensor): Señal estimada, tensor de forma (..., T).
-        eps (float): Pequeño valor para estabilidad numérica.
-
-    Returns:
-        torch.Tensor: Tensor con el SDR calculado para cada elemento del batch.
-    """
-    scale = torch.sum(target * estimate, dim=-1, keepdim=True) / (
-        torch.sum(target**2, dim=-1, keepdim=True) + eps
-    )
-    projection = scale * target
-    noise = estimate - projection
-    sdr_val = 10 * torch.log10(
-        (torch.sum(projection**2, dim=-1) + eps) / (torch.sum(noise**2, dim=-1) + eps)
-    )
-    return sdr_val
-
-
-def snr_loss(
-    estimate: torch.Tensor, target: torch.Tensor, eps: float = 1e-8
-) -> torch.Tensor:
-    """
-    Función de pérdida basada en el SNR (negativo).
-
-    Se desea maximizar el SNR, por lo que la pérdida se define como el negativo
-    del SNR promedio.
-    """
-    return -compute_snr(target, estimate, eps).mean()
-
+import torch.nn.functional as F
 
 def si_sdr_loss(
-    estimate: torch.Tensor, target: torch.Tensor, eps: float = 1e-8
+    pred_spec: torch.Tensor,
+    real_spec: torch.Tensor,
+    n_fft: int = 512,
+    hop_length: int = 256,
+    win_length: int = 512,
+    window_fn = torch.hann_window,
+    eps: float = 1e-8
 ) -> torch.Tensor:
     """
-    Función de pérdida basada en el SI-SDR (negativo).
+    Calcula el SI-SDR entre una señal predicha y una real, partiendo de
+    sus espectrogramas complejos. Primero se realiza la iSTFT para
+    recuperar las señales en el dominio del tiempo y luego se aplica la
+    fórmula de SI-SDR.
 
-    Se desea maximizar el SI-SDR, por lo que la pérdida se define como el negativo
-    del SI-SDR promedio.
+    Parámetros
+    ----------
+    pred_spec : torch.Tensor
+        Espectrograma predicho (tensor complejo de forma [..., freq, time]).
+    real_spec : torch.Tensor
+        Espectrograma real (tensor complejo de forma [..., freq, time]).
+    n_fft : int, opcional
+        Tamaño de la FFT, por defecto 512.
+    hop_length : int, opcional
+        Salto entre ventanas sucesivas en la STFT, por defecto 256.
+    win_length : int, opcional
+        Longitud de la ventana, por defecto 512.
+    window_fn : Callable, opcional
+        Función que genera la ventana, por defecto torch.hann_window.
+    eps : float, opcional
+        Pequeña constante para evitar divisiones por cero, por defecto 1e-8.
+
+    Retorna
+    -------
+    torch.Tensor
+        Valor promedio de SI-SDR (en dB) para el batch.
     """
-    return -compute_si_sdr(target, estimate, eps).mean()
 
+    # ------------------------------------------------
+    # 1) Asegurarnos de que los tensores sean complejos
+    # ------------------------------------------------
+    # PyTorch 1.8+ permite tensores complejos nativos. Si tus espectrogramas
+    # están separados en magnitud/fase, tendrás que combinarlos manualmente.
+    # Ejemplo:
+    #   pred_spec_complex = torch.complex(pred_mag, pred_phase)
+    #   real_spec_complex = torch.complex(real_mag, real_phase)
+    #
+    # Aquí asumimos que pred_spec y real_spec ya son tensores complejos.
+    # ------------------------------------------------
+    
+    if not pred_spec.is_complex() or not real_spec.is_complex():
+        raise ValueError("Los espectrogramas deben ser tensores complejos (torch.cfloat o torch.cdouble).")
 
-def sdr_loss(
-    estimate: torch.Tensor, target: torch.Tensor, eps: float = 1e-8
-) -> torch.Tensor:
-    """
-    Función de pérdida basada en el SDR (negativo).
+    # ------------------------------------------------
+    # 2) Inversa de STFT para recuperar la señal de audio
+    # ------------------------------------------------
+    # Suponiendo dimensiones: [batch, freq, time] o similar.
+    # Ajusta las dimensiones según tu caso de uso.
+    # ------------------------------------------------
+    
+    device = pred_spec.device
+    window = window_fn(win_length, periodic=False, device=device)
 
-    Se desea maximizar el SDR, por lo que la pérdida se define como el negativo
-    del SDR promedio.
-    """
-    return -compute_sdr(target, estimate, eps).mean()
+    # Señales reconstruidas en el dominio del tiempo
+    pred_audio = torch.istft(
+        pred_spec,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        win_length=win_length,
+        window=window,
+        center=True
+    )
+    real_audio = torch.istft(
+        real_spec,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        win_length=win_length,
+        window=window,
+        center=True
+    )
+
+    # ------------------------------------------------
+    # 3) Calcular SI-SDR
+    # ------------------------------------------------
+    # Fórmula del SI-SDR (para cada muestra x_hat (pred) y x (real)):
+    #
+    #  s = <x_hat, x> / ||x||^2 * x
+    #  e = x_hat - s
+    #  SI-SDR = 10 * log10( ||s||^2 / ||e||^2 )
+    #
+    # Donde:
+    #  <x_hat, x> es la multiplicación punto a punto y luego suma.
+    # ------------------------------------------------
+
+    # Asegura que pred_audio y real_audio tengan la misma dimensión
+    # si trabajas en batch. Asumimos [batch, samples].
+    if pred_audio.ndim == 1:
+        # Expand a dimensión [1, tiempo] si es señal única.
+        pred_audio = pred_audio.unsqueeze(0)
+        real_audio = real_audio.unsqueeze(0)
+
+    # Producto punto y norm
+    dot = torch.sum(pred_audio * real_audio, dim=1, keepdim=True)  # <x_hat, x>
+    norm_x = torch.sum(real_audio ** 2, dim=1, keepdim=True)       # ||x||^2
+
+    # Evitar división por cero
+    alpha = dot / (norm_x + eps)  # Escala
+    s_target = alpha * real_audio
+    e_noise = pred_audio - s_target
+
+    # Potencias
+    target_power = torch.sum(s_target ** 2, dim=1, keepdim=True)   # ||s_target||^2
+    noise_power = torch.sum(e_noise ** 2, dim=1, keepdim=True)     # ||e_noise||^2
+
+    si_sdr_linear = (target_power + eps) / (noise_power + eps)
+    si_sdr_db = 10 * torch.log10(si_sdr_linear + eps)
+
+    # Retornamos el promedio para todo el batch
+    return si_sdr_db.mean()
+

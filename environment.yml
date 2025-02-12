@@ -13,5 +13,5 @@ project:
     url: "https://zenodo.org/records/3338373/files/musdb18hq.zip?download=1"
     paths:
       raw: "data/raw"
-      external: "data/external"
+      musdb18hq: "data/musdb18hq"
       processed: "data/processed"

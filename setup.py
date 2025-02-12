@@ -2,7 +2,6 @@
 import logging
 import os
 import sys
-import zipfile
 
 import requests
 import yaml
@@ -73,20 +72,6 @@ def download_dataset(url, dest_path, dataset_name):
     return zip_filename
 
 
-def extract_dataset(zip_filepath, extract_to):
-    """Extract the ZIP file to the specified directory."""
-    try:
-        with zipfile.ZipFile(zip_filepath, "r") as zip_ref:
-            zip_ref.extractall(extract_to)
-        logging.info("Extraction completed to '%s'.", extract_to)
-    except zipfile.BadZipFile:
-        logging.error("Bad zip file: '%s'.", zip_filepath)
-        sys.exit(1)
-    except Exception as e:
-        logging.error("Failed to extract dataset: %s", str(e))
-        sys.exit(1)
-
-
 def main():
     config = load_config("environment.yml")
     try:
@@ -97,20 +82,17 @@ def main():
         paths = dataset_config["paths"]
 
         raw_path = paths["raw"]
-        external_path = paths["external"]
+        external_path = paths["musdb18hq"]
         processed_path = paths["processed"]
     except KeyError as e:
         logging.error("Missing key in configuration: %s", str(e))
         sys.exit(1)
 
     create_directories(
-        {"raw": raw_path, "external": external_path, "processed": processed_path}
+        {"raw": raw_path, "processed": processed_path, "musdb18hq": external_path}
     )
 
-    zip_filepath = download_dataset(dataset_url, raw_path, dataset_name)
-
-    extract_dataset(zip_filepath, external_path)
-
+    download_dataset(dataset_url, raw_path, dataset_name)
     logging.info("Setup completed successfully.")
 
 

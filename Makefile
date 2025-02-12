@@ -42,9 +42,17 @@ help:
 init:
 	@echo "Ejecutando setup.py para inicializar el proyecto..."
 	$(PYTHON) $(SETUP_SCRIPT)
+	@rm -rf data/musdb18hq/*
+	@mkdir -p data/musdb18hq
+	@unzip data/raw/MUSDB18_HQ.zip -d data/musdb18hq
+	@mv data/musdb18hq/test/* data/musdb18hq/
+	@mv data/musdb18hq/train/* data/musdb18hq/
+	@rmdir data/musdb18hq/train/ data/musdb18hq/test/
 
 pipe-data:
 	@echo "Ejecutando pipeline de data..."
+	@rm -rf data/processed/*
+	@mkdir -p data/processed
 	$(PYTHON) $(PIPELINE_DATA)
 
 pipe-train:

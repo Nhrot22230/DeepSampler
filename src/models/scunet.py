@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 class SCUNet(nn.Module):
-    def __init__(self, in_channels=1, out_channels=4, init_channels=64, depth=5):
+    def __init__(self, in_channels=1, out_channels=4, init_channels=32, depth=5):
         super(SCUNet, self).__init__()
         self.encoder = nn.ModuleList()
         self.decoder = nn.ModuleList()
@@ -14,7 +14,7 @@ class SCUNet(nn.Module):
         for _ in range(depth):
             self.encoder.append(
                 nn.Sequential(
-                    nn.Conv2d(in_channels, ch, 3, padding=1),
+                    nn.Conv2d(in_channels, ch, kernel_size=3, padding=1),
                     nn.BatchNorm2d(ch),
                     nn.ReLU(inplace=True),
                 )
@@ -29,13 +29,22 @@ class SCUNet(nn.Module):
                 nn.Sequential(
                     # Upsampling block
                     nn.ConvTranspose2d(
-                        ch, ch // 2, 5, stride=2, padding=2, output_padding=1
+                        in_channels=ch,
+                        out_channels=ch // 2,
+                        kernel_size=5,
+                        stride=2,
+                        padding=2,
                     ),
                     nn.BatchNorm2d(ch // 2),
                     nn.ReLU(inplace=True),
                     nn.Dropout(0.4),
-                    # Convolution block
-                    nn.Conv2d(ch, ch // 2, 3, padding=1),  # After concatenation
+                    # DeConv block
+                    nn.Conv2d(
+                        in_channels=ch // 2,
+                        out_channels=ch // 2,
+                        kernel_size=3,
+                        padding=1,
+                    ),
                     nn.BatchNorm2d(ch // 2),
                     nn.ReLU(inplace=True),
                 )

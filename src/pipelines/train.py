@@ -31,6 +31,11 @@ scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
 total_epochs = 40
 phase1_epochs = 20
 
+
+# get random sample shape
+mixture, _ = train_dataset.__getitem__(0)
+print(mixture.shape)
+
 for epoch in tqdm(range(total_epochs), desc="Training Progress", unit="epoch"):
     model.train()
     epoch_loss = 0.0

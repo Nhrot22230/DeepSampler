@@ -22,19 +22,17 @@ train_loader = DataLoader(
     train_dataset, batch_size=8, shuffle=True, num_workers=4, pin_memory=True
 )
 
+# get random sample shape
+mixture, _ = train_dataset.__getitem__(0)
+print(mixture.shape)
 
-model = SCUNet(in_channels=1, out_channels=4)
+model = SCUNet()
 criterion = MultiSourceL1Loss(weights=[0.297, 0.262, 0.232, 0.209])  # Sum to 1
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-6)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
 
 total_epochs = 40
 phase1_epochs = 20
-
-
-# get random sample shape
-mixture, _ = train_dataset.__getitem__(0)
-print(mixture.shape)
 
 for epoch in tqdm(range(total_epochs), desc="Training Progress", unit="epoch"):
     model.train()

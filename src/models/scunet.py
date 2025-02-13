@@ -1,10 +1,10 @@
-import logging
+# import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 # Configuración básica del #logger
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 # logger = logging.get#logger(__name__)
 
 # Parámetros de entrada y salida

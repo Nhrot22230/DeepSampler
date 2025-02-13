@@ -58,7 +58,7 @@ pipe-train:
 
 pipe-eval:
 	@echo "Ejecutando pipeline de evaluación..."
-	$(PYTHON) $(PIPELINE_EVAL) --mixture data/external/train/Actions\ -\ Devil\'s\ Words/mixture.wav --output_dir experiments/results/
+	$(PYTHON) $(PIPELINE_EVAL) --mixture data/musdb18hq/train/Actions\ -\ Devil\'s\ Words/mixture.wav --output_dir experiments/results/scunet
 
 test:
 	@echo "Ejecutando tests..."

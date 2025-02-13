@@ -121,7 +121,7 @@ project_root/
 ### **Explicación de Carpetas Clave**
 
 - **configs/**
-  Aquí se almacenan archivos de configuración (YAML, JSON, etc.) que definen hiperparámetros, rutas de datos, parámetros del modelo y otros ajustes, permitiendo cambiar de experimento sin modificar el código.
+  Aquí se almacenan distintos archivos de configuración (YAML, JSON, etc.) que definen hiperparámetros, rutas de datos, parámetros del modelo y otros ajustes, permitiendo cambiar de experimento sin modificar el código.
 
 - **data/**
   Organiza tus datos en subcarpetas:

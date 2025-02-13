@@ -16,17 +16,22 @@ sys.path.append(project_root)
 data_root = os.path.join(project_root, "data")
 musdb_path = os.path.join(project_root, "data", "musdb18hq", "train")
 
+# 1) Select device (GPU if available)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 
 train_dataset = MUSDB18Dataset(os.path.join(data_root, "processed", "train"))
 train_loader = DataLoader(
     train_dataset, batch_size=8, shuffle=True, num_workers=4, pin_memory=True
 )
 
-# get random sample shape
+# Get random sample shape just for debug
 mixture, _ = train_dataset.__getitem__(0)
-print(mixture.shape)
+print("Sample input shape:", mixture.shape)
 
 model = SCUNet()
+model.to(device)  # 2) Move model to GPU (if available)
+
 criterion = MultiSourceL1Loss(weights=[0.297, 0.262, 0.232, 0.209])  # Sum to 1
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-6)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
@@ -46,6 +51,10 @@ for epoch in tqdm(range(total_epochs), desc="Training Progress", unit="epoch"):
     )
 
     for mixture_mag, targets in batch_iter:
+        # 3) Move your batch (inputs & targets) to the device
+        mixture_mag = mixture_mag.to(device)
+        targets = targets.to(device)
+
         outputs = model(mixture_mag)
         loss = criterion(outputs, targets)
 
@@ -69,4 +78,6 @@ for epoch in tqdm(range(total_epochs), desc="Training Progress", unit="epoch"):
         f"LR: {optimizer.param_groups[0]['lr']:.1e}"
     )
 
+# Save the model checkpoint
 torch.save(model.state_dict(), os.path.join(project_root, "checkpoints", "scunet.pth"))
+print("Model checkpoint saved.")

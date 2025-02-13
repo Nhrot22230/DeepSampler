@@ -13,7 +13,7 @@ while "src" not in os.listdir(project_root):
 sys.path.append(project_root)
 
 data_root = os.path.join(project_root, "data")
-musdb_path = os.path.join(project_root, "data", "musdb18hq")
+musdb_path = os.path.join(project_root, "data", "musdb18hq", "train")
 
 chunk_seconds = 2
 sample_rate = 44100
@@ -21,6 +21,7 @@ chunk_len = chunk_seconds * sample_rate
 window_size = 2048
 hop_length = 512
 n_fft = 2048
+
 """
 Oh, J., Kim, D., & Yun, S.-Y. (2018). Spectrogram-channels u-net: a source
 separation model viewing each channel as the spectrogram of each source (Version 2).
@@ -85,9 +86,7 @@ if __name__ == "__main__":
     os.makedirs(test_dir, exist_ok=True)
 
     tracks = os.listdir(musdb_path)
-    train_tracks, test_tracks = train_test_split(
-        tracks, test_size=0.33, random_state=42
-    )
+    train_tracks, test_tracks = train_test_split(tracks, test_size=0.2, random_state=42)
 
     for track in tqdm(train_tracks, desc="Processing train tracks"):
         track_chunks = process_track(os.path.join(musdb_path, track))

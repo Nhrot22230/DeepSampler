@@ -45,9 +45,6 @@ init:
 	@rm -rf data/musdb18hq/*
 	@mkdir -p data/musdb18hq
 	@unzip data/raw/MUSDB18_HQ.zip -d data/musdb18hq
-	@mv data/musdb18hq/test/* data/musdb18hq/
-	@mv data/musdb18hq/train/* data/musdb18hq/
-	@rmdir data/musdb18hq/train/ data/musdb18hq/test/
 
 pipe-data:
 	@echo "Ejecutando pipeline de data..."

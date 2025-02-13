@@ -79,5 +79,8 @@ for epoch in tqdm(range(total_epochs), desc="Training Progress", unit="epoch"):
     )
 
 # Save the model checkpoint
-torch.save(model.state_dict(), os.path.join(project_root, "checkpoints", "scunet.pth"))
+torch.save(
+    model.state_dict(),
+    os.path.join(project_root, "experiments", "checkpoints", "scunet.pth"),
+)
 print("Model checkpoint saved.")

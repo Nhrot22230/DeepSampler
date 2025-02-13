@@ -1,178 +1,203 @@
+import argparse
 import os
+from typing import Dict, List, Optional, Tuple
+
+import librosa
+import numpy as np
 import torch
 import torchaudio
-from torch.nn.functional import pad
+from src.models.u_net import SimpleUNet  # or SCUNet if you have that model instead
+from src.utils.audio import chunk_audio, load_audio
+from tqdm import tqdm
 
-def load_model(model_path, SCUNetClass, device):
+SR = 44100        # Sample rate
+N_FFT = 2048      # FFT size
+HOP_LENGTH = 512  # Hop length for STFT
+CHUNK_DURATION = 5.0  # Duration (in seconds) for each chunk to process
+
+
+def prepare_model_input(complex_spec: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Loads a trained SCUNet model onto the specified device.
-    
+    From a complex STFT, extract magnitude & phase, convert magnitude to dB,
+    and prepare the input tensor for the model (adding a channel dimension).
+
     Args:
-        model_path (str): Path to the .pth file with trained weights.
-        SCUNetClass (nn.Module): Your SCUNet class definition.
-        device (torch.device): 'cuda' or 'cpu'.
-        
-    Returns:
-        model (nn.Module): The loaded SCUNet in eval mode.
-    """
-    model = SCUNetClass()
-    state_dict = torch.load(model_path, map_location=device)
-    model.load_state_dict(state_dict)
-    model.to(device)
-    model.eval()
-    return model
+        complex_spec (torch.Tensor): Complex STFT of shape [1, F, T].
 
-def separate_sources(
-    waveform: torch.Tensor,
+    Returns:
+        model_input (torch.Tensor): [1, 1, F, T] (dB magnitude).
+        phase (torch.Tensor): Phase of shape [1, F, T].
+    """
+    magnitude = torch.abs(complex_spec)  # [1, F, T]
+    phase = torch.angle(complex_spec)    # [1, F, T]
+
+    # Convert amplitude to decibels
+    amp_to_db = torchaudio.transforms.AmplitudeToDB(top_db=80)
+    magnitude_db = amp_to_db(magnitude)  # [1, F, T]
+
+    # Model expects [batch, channels=1, freq, time]
+    model_input = magnitude_db.unsqueeze(1)  # => [1, 1, F, T]
+    return model_input, phase
+
+
+def reconstruct_chunk(
+    outputs: torch.Tensor,
+    phase: torch.Tensor,
+    chunk_length: int
+) -> List[np.ndarray]:
+    """
+    Reconstruct waveforms for a chunk using the model outputs (in dB) + phase.
+
+    Args:
+        outputs (torch.Tensor): [1, out_channels, F, T] (predicted magnitudes in dB).
+        phase (torch.Tensor): [1, F, T] (phase for that chunk).
+        chunk_length (int): Number of samples in the original chunk.
+
+    Returns:
+        List[np.ndarray]: One waveform per output source.
+    """
+    # Remove batch dim => [out_channels, F, T]
+    outputs_db = outputs.squeeze(0).cpu().numpy()
+    # Convert dB to linear amplitude
+    outputs_linear = librosa.db_to_amplitude(outputs_db, ref=1.0)  # [out_channels, F, T]
+
+    phase_np = phase.squeeze(0).cpu().numpy()  # [F, T]
+
+    num_channels = outputs_linear.shape[0]
+    reconstructed = []
+
+    for i in range(num_channels):
+        # Complex = mag * exp(j * phase)
+        complex_spec_est = outputs_linear[i] * np.exp(1j * phase_np)
+        # iSTFT with librosa, ensuring we keep the chunk length consistent
+        waveform = librosa.istft(
+            complex_spec_est,
+            hop_length=HOP_LENGTH,
+            length=chunk_length
+        )
+        reconstructed.append(waveform)
+
+    return reconstructed
+
+
+def inference_pipeline(
     model: torch.nn.Module,
-    device: torch.device,
-    n_fft: int = 2048,
-    hop_length: int = 512,
-    win_length: int = 2048
-):
-    """
-    Given a raw audio waveform, use SCUNet to separate sources.
-    1) Compute STFT => Magnitude + Phase.
-    2) Feed Magnitude into model.
-    3) Multiply predicted magnitudes by mixture phase.
-    4) iSTFT => separated waveforms.
-    
-    Args:
-        waveform (torch.Tensor): Shape [1, num_samples] (mono) or [channels, num_samples].
-        model (torch.nn.Module): The trained SCUNet model.
-        device (torch.device): GPU or CPU.
-        n_fft, hop_length, win_length: STFT params.
-    
-    Returns:
-        separated_waveforms (List[torch.Tensor]): List of separated waveforms (one per output channel).
-    """
-
-    # 0) Ensure waveform on device
-    waveform = waveform.to(device)
-    
-    # 1) STFT
-    #    shape of 'spec': [batch=1, freq_bins, time_frames, 2]
-    #    if you use torchaudio >= 0.10's return_complex=True, it returns complex64. 
-    #    We'll keep the older approach that gives real & imag as last dimension = 2.
-    spec = torch.stft(
-        input=waveform,
-        n_fft=n_fft,
-        hop_length=hop_length,
-        win_length=win_length,
-        window=torch.hann_window(win_length, device=device),
-        return_complex=False,
-        center=True,
-        pad_mode="reflect"
-    )  # shape: [channels, freq, time, 2] for multi-channel input
-
-    # If mono, you might have shape [1, freq, time, 2].
-    # We'll sum or average across channels if needed, or assume 1 channel. 
-    # Let's assume mono or you want to do per-channel separation. 
-
-    # 2) Separate magnitude & phase
-    real_part = spec[..., 0]
-    imag_part = spec[..., 1]
-    magnitude = torch.sqrt(real_part**2 + imag_part**2)
-    phase = torch.atan2(imag_part, real_part)  # shape: [channels, freq, time]
-
-    # 3) Prepare model input: SCUNet might expect shape [batch, 1, freq, time] or [batch, freq, time].
-    #    We'll assume [batch=1, in_channels=1, freq, time]. If your model is coded differently, adjust.
-    #    Also ensure float32.
-    magnitude = magnitude.unsqueeze(1).float()  # => [channels, 1, freq, time]
-    
-    # If you only have a single channel, channels=1 => shape [1,1,freq,time].
-    # We'll treat 'channels' as part of batch dimension if you want to separate each channel independently.
-    batch_input = magnitude  # e.g. shape: [1,1,freq,time] if mono
-    batch_input = batch_input.to(device)
-    
-    with torch.no_grad():
-        pred = model(batch_input)  # shape [batch_size, out_channels, freq, time]
-    
-    # Typically 'out_channels' = number of sources (e.g., 4 for [vocals, drum, bass, other]).
-    # pred is the predicted *magnitude* for each source.
-
-    # 4) Recombine predicted magnitude with mixture phase
-    #    We want: complex = predicted_mag * e^{j*phase} = predicted_mag * (cos(phase) + i sin(phase))
-    #    Then do iSTFT for each source.
-    
-    # pred shape: [1, out_channels, freq, time]
-    # But we have 'phase' shape: [channels, freq, time]. If channels=1, shape => [1, freq, time]
-    # We can broadcast if needed. We'll just index the first channel if we assume single-channel mixture.
-    out_channels = pred.shape[1]
-    
-    # We'll store separated waveforms in a list
-    separated_waveforms = []
-    
-    for source_idx in range(out_channels):
-        pred_mag = pred[:, source_idx, :, :]  # shape [1, freq, time]
-        # If 'channels' > 1, adjust indexing or handle each channel separately. 
-        # We'll assume single channel for simplicity:
-        mixture_phase = phase[0]  # shape [freq, time]
-
-        # Reconstruct real & imag from predicted magnitude + mixture phase
-        pred_real = pred_mag * torch.cos(mixture_phase)
-        pred_imag = pred_mag * torch.sin(mixture_phase)
-
-        # The stft expects shape [..., 2], so stack real & imag:
-        pred_spec = torch.stack([pred_real, pred_imag], dim=-1)  # [freq, time, 2]
-        pred_spec = pred_spec.unsqueeze(0)  # add channel dim => [1, freq, time, 2]
-
-        # 5) iSTFT
-        #  iSTFT might need the same parameters used above. 
-        #  If there's odd length mismatch, you may want to pad/crop carefully.
-        est_wav = torch.istft(
-            pred_spec,
-            n_fft=n_fft,
-            hop_length=hop_length,
-            win_length=win_length,
-            window=torch.hann_window(win_length, device=device),
-            center=True,
-            normalized=False,
-            onesided=True
-        )  # shape [1, num_samples]
-        
-        separated_waveforms.append(est_wav.cpu().squeeze(0))  # move to CPU, drop channel
-
-    return separated_waveforms
-
-def run_inference_pipeline(
     mixture_path: str,
-    model_path: str,
-    output_dir: str,
-    SCUNetClass,
-    n_fft: int = 2048,
-    hop_length: int = 512,
-    win_length: int = 2048,
-):
+    stft_params: Dict[str, int],
+    device: torch.device,
+    output_dir: Optional[str] = None,
+    chunk_duration: float = CHUNK_DURATION,
+) -> Dict[str, np.ndarray]:
     """
-    1) Load audio from mixture_path.
-    2) Load trained SCUNet model from model_path.
-    3) Separate mixture into sources.
-    4) Save each source as .wav in output_dir.
-    """
-    # Select device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Inference on device: {device}")
+    Full inference pipeline for source separation:
+      1. Load audio (mixture).
+      2. Split audio into non-overlapping chunks.
+      3. Process each chunk through the model.
+      4. Each chunk yields out_channels => waveforms.
+      5. Concatenate these chunked waveforms per-source.
+      6. Save the final waveforms if an output directory is provided.
 
-    # 1) Load mixture waveform
-    #    torchaudio.load returns (waveform, sample_rate), shape of waveform: [channels, num_samples]
-    waveform, sr = torchaudio.load(mixture_path)
-    # If multi-channel, you can choose to mix down to mono or handle each channel separately.
-    # For simplicity, let's do mono (sum channels):
-    if waveform.shape[0] > 1:
-        waveform = waveform.mean(dim=0, keepdim=True)
+    Args:
+        model (torch.nn.Module): Trained model.
+        mixture_path (str): Path to mixture.wav
+        stft_params (Dict[str, int]): e.g. {"n_fft": 2048, "hop_length": 512}
+        device (torch.device): 'cuda' or 'cpu'
+        output_dir (Optional[str]): Where to save results if provided
+        chunk_duration (float): Duration of each chunk in seconds
+
+    Returns:
+        Dict[str, np.ndarray]: Maps source name => separated waveform array
+    """
+    # 1) Load full mixture audio
+    mixture = load_audio(mixture_path, sr=SR)  # shape [num_samples], or stereo
+
+    # 2) Split into chunks
+    chunks = chunk_audio(mixture, chunk_duration=chunk_duration, sr=SR)
+    print(f"Total chunks: {len(chunks)}")
+
+    # We'll assume the model has out_channels = 4 => [vocal, drum, bass, other]
+    source_names = ["vocal", "drum", "bass", "other"]
+    reconstructed_chunks = {name: [] for name in source_names}
+
+    model.eval()
+    with torch.no_grad():
+        for chunk in tqdm(chunks, desc="Processing chunks"):
+            # 3) STFT with librosa (CPU)
+            complex_spec_np = librosa.stft(
+                chunk, n_fft=stft_params["n_fft"], hop_length=stft_params["hop_length"]
+            )  # shape [F, T]
+
+            # Move to torch complex64 => shape [1, F, T]
+            complex_spec = torch.tensor(complex_spec_np, dtype=torch.complex64).unsqueeze(0)
+
+            # Prepare input => get dB magnitude + phase
+            model_input, phase = prepare_model_input(complex_spec)
+            # Move model_input to device (for GPU inference)
+            model_input = model_input.to(device)
+
+            # 4) Inference => shape [1, out_channels, F, T]
+            outputs = model(model_input)
+
+            # 5) Reconstruct chunk waveforms for each source
+            rec_chunks = reconstruct_chunk(outputs, phase, chunk_length=len(chunk))
+
+            # 6) Save them in a list to be concatenated
+            for i, name in enumerate(source_names):
+                reconstructed_chunks[name].append(rec_chunks[i])
+
+    # 7) Concatenate all chunks per source
+    full_reconstructed = {
+        name: np.concatenate(reconstructed_chunks[name]) for name in source_names
+    }
+
+    # 8) Save to disk if requested
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
+        for name, waveform in full_reconstructed.items():
+            out_path = os.path.join(output_dir, f"{name}.wav")
+            # Save via torchaudio => waveforms need shape [channels, time]
+            torchaudio.save(
+                out_path,
+                torch.tensor(waveform).unsqueeze(0),  # shape [1, time]
+                sample_rate=SR
+            )
+            print(f"Saved {name} to {out_path}")
+
+    return full_reconstructed
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Inference pipeline for audio source separation.")
+    parser.add_argument("--mixture", type=str, required=True, help="Path to mixture.wav")
+    parser.add_argument("--output_dir", type=str, default="results", help="Output directory")
+    parser.add_argument("--chunk_duration", type=float, default=5.0, help="Chunk duration in seconds")
+    parser.add_argument("--model_checkpoint", type=str, default="checkpoints/simple_unet.pth")
+    args = parser.parse_args()
+
+    # 1) Create model with the same architecture used in training
+    #    For example, your SimpleUNet or SCUNet class
+    model = SimpleUNet(input_channels=1, output_channels=4, depth=1)
     
-    # 2) Load model
-    model = load_model(model_path, SCUNetClass, device)
+    # 2) Load checkpoint
+    #    Use map_location='cpu' if your checkpoint was saved on CPU, but we'll move it to GPU anyway.
+    state_dict = torch.load(args.model_checkpoint, map_location="cpu")
+    model.load_state_dict(state_dict)
 
-    # 3) Separate sources
-    separated_waveforms = separate_sources(
-        waveform, model, device, n_fft=n_fft, hop_length=hop_length, win_length=win_length
+    # 3) Pick device (GPU if available)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    print(f"Inference device: {device}")
+
+    # 4) STFT parameters
+    stft_params = {"n_fft": N_FFT, "hop_length": HOP_LENGTH}
+
+    # 5) Run inference
+    separated = inference_pipeline(
+        model=model,
+        mixture_path=args.mixture,
+        stft_params=stft_params,
+        device=device,
+        output_dir=args.output_dir,
+        chunk_duration=args.chunk_duration,
     )
-
-    # 4) Save each source
-    os.makedirs(output_dir, exist_ok=True)
-    for i, source_wav in enumerate(separated_waveforms):
-        out_path = os.path.join(output_dir, f"source_{i}.wav")
-        torchaudio.save(out_path, source_wav.unsqueeze(0), sr)
-        print(f"Saved separated source {i} to: {out_path}")
+    print("Inference completed.")

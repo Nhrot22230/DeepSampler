@@ -23,7 +23,7 @@ def load_SCUNET(model_path, device):
     return model
 
 
-def inference_pipeline(model, mixture_path, output_dir, device="cuda"):
+def inference_pipeline(model, mixture_path, output_path, device="cuda"):
     # 1. Cargar la señal y dividirla en chunks (2 segundos cada uno)
     waveform = load_audio(mixture_path)
     chunk_len = CHUNK_SECONDS * SAMPLE_RATE
@@ -76,10 +76,10 @@ def inference_pipeline(model, mixture_path, output_dir, device="cuda"):
         "other": final_sources[3],
     }
 
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(output_path, exist_ok=True)
     for name, audio in sources.items():
         torchaudio.save(
-            os.path.join(output_dir, f"{name}.wav"),
+            os.path.join(output_path, f"{name}.wav"),
             torch.tensor(audio).unsqueeze(0),
             SAMPLE_RATE,
         )

@@ -21,6 +21,25 @@ chunk_len = chunk_seconds * sample_rate
 window_size = 2048
 hop_length = 512
 n_fft = 2048
+"""
+Oh, J., Kim, D., & Yun, S.-Y. (2018). Spectrogram-channels u-net: a source
+separation model viewing each channel as the spectrogram of each source (Version 2).
+arXiv. https://doi.org/10.48550/ARXIV.1810.11520
+2.1. Short-time Fourier Transform
+We transform a waveform into a spectrogram to make input
+and target data of the network by the following procedure:
+• Step 1: We sample waveform of songs at 44,100Hz. Then,
+we cut songs into 2 second increments.
+• Step 2: We apply a short-time Fourier transform (STFT) to
+waveform signals with a window size of 2048 and hop
+length of 512 frames. As a result, we get the complex-
+valued spectrograms of signals.
+• Step 3: We decompose spectrograms into magnitude and
+phase. The former is used as input and targets to the
+network, the latter is used for audio reconstruction. For
+the sake of simplicity, spectrogram means magnitude in
+this paper.
+"""
 
 
 def process_track(track_path: str) -> List[AudioChunk]:

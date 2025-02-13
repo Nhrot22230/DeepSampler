@@ -1,5 +1,6 @@
-import torch
 from typing import TypedDict
+
+import torch
 
 
 class AudioChunk(TypedDict):

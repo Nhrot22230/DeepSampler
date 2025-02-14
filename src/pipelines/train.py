@@ -1,5 +1,4 @@
 import os
-import sys
 
 import torch
 from src.models import SCUNet
@@ -7,17 +6,18 @@ from src.utils.data import MUSDB18Dataset
 from src.utils.training import MultiSourceL1Loss
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from typing import Optional
 
 
 def train_pipeline(
-    model,
-    dataloader,
-    device,
-    criterion,
-    optimizer,
-    scheduler,
-    total_epochs=40,
-    phase1_epochs=20,
+    model: torch.nn.Module,
+    dataloader: torch.utils.data.DataLoader,
+    criterion: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+    device: torch.device = torch.device("cpu"),
+    total_epochs: int = 40,
+    phase1_epochs: int = 20,
 ):
     """
     Ejecuta la pipeline de entrenamiento sobre el modelo dado.
@@ -50,20 +50,16 @@ def train_pipeline(
         )
 
         for inputs, targets in batch_iter:
-            # Mover datos al dispositivo seleccionado
             inputs = inputs.to(device)
             targets = targets.to(device)
 
-            # Forward pass
             outputs = model(inputs)
             loss = criterion(outputs, targets)
 
-            # Backpropagation y actualización de parámetros
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            # Acumular pérdida para mostrar métricas
             epoch_loss += loss.item()
             batch_iter.set_postfix(
                 {
@@ -73,8 +69,8 @@ def train_pipeline(
                 }
             )
 
-        # Actualizar learning rate tras cada época
-        scheduler.step()
+        if scheduler is not None:
+            scheduler.step()
         tqdm.write(
             f"Epoch {epoch+1} completed"
             f" - Avg Loss: {epoch_loss/len(dataloader):.4f}"
@@ -88,12 +84,8 @@ if __name__ == "__main__":
     project_root = os.getcwd()
     while "src" not in os.listdir(project_root):
         project_root = os.path.dirname(project_root)
-    sys.path.append(project_root)
-
     data_root = os.path.join(project_root, "data")
     musdb_path = os.path.join(project_root, "data", "musdb18hq", "train")
-
-    # 1) Select device (GPU if available)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -102,13 +94,11 @@ if __name__ == "__main__":
         train_dataset, batch_size=8, shuffle=True, num_workers=4, pin_memory=True
     )
 
-    # Get random sample shape just for debug
     mixture, _ = train_dataset.__getitem__(0)
     print("Sample input shape:", mixture.shape)
 
     model = SCUNet()
-    model.to(device)  # 2) Move model to GPU (if available)
-
+    model.to(device)
     criterion = MultiSourceL1Loss(weights=[0.297, 0.262, 0.232, 0.209])  # Sum to 1
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-6)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
@@ -127,7 +117,6 @@ if __name__ == "__main__":
         phase1_epochs=phase1_epochs,
     )
 
-    # Save the model checkpoint
     torch.save(
         model.state_dict(),
         os.path.join(project_root, "experiments", "checkpoints", "scunet.pth"),

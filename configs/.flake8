@@ -1,5 +1,5 @@
 [flake8]
-max-line-length = 90
+max-line-length = 100
 # Se ignoran reglas que pueden entrar en conflicto con Black:
 extend-ignore = E203, W503
 # Se excluyen carpetas que no se deben analizar:

@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import torch
 from src.models import SCUNet
@@ -6,7 +7,6 @@ from src.utils.data import MUSDB18Dataset
 from src.utils.training import MultiSourceL1Loss
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from typing import Optional
 
 
 def train_pipeline(

@@ -1,8 +1,10 @@
 import os
 from typing import List, Optional
+
 import torch
-from src.utils.audio import AudioChunk, chunk_waveform, load_audio
-from src.utils.data import MUSDB18Dataset
+from src.utils.audio.audio_chunk import AudioChunk
+from src.utils.audio.processing import chunk_waveform, load_audio
+from src.utils.data.dataset import MUSDB18Dataset
 from src.utils.logging import main_logger as logger
 from tqdm import tqdm
 

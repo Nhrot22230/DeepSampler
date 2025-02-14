@@ -1,7 +1,8 @@
 from typing import List
 
 import torch
-from src.utils.audio import AudioChunk, log_spectrogram
+from src.utils.audio.audio_chunk import AudioChunk
+from src.utils.audio.processing import log_spectrogram
 from torch.utils.data import Dataset
 
 

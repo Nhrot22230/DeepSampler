@@ -1,47 +1,47 @@
-import os
+from typing import List
 
 import torch
+from src.utils.audio import AudioChunk, log_spectrogram
 from torch.utils.data import Dataset
 
 
+# Definición de la clase Dataset para MUSDB18
 class MUSDB18Dataset(Dataset):
-    def __init__(self, processed_dir):
-        self.processed_dir = processed_dir
-        self.track_files = [f for f in os.listdir(processed_dir) if f.endswith(".pt")]
-
-        self.n_fft = 2048
-        self.hop_length = 512
-        self.window = torch.hann_window(self.n_fft)
+    def __init__(
+        self,
+        data: List[AudioChunk],
+        window: torch.Tensor,
+        nfft: int = 2048,
+        hop_length: int = 512,
+    ):
+        """
+        Args:
+            data (List[AudioChunk]): Lista de AudioChunks.
+            nfft (int, optional): Tamaño de la ventana de la STFT. Defaults to 2048.
+            hop_length (int, optional): Tamaño del salto de la STFT. Defaults to 512.
+            window (torch.Tensor, optional): Ventana a utilizar en la STFT.
+        """
+        self.data = data
+        self.nfft = nfft
+        self.hop_length = hop_length
+        self.window = window
 
     def __len__(self):
-        return len(self.track_files)
+        return len(self.data)
 
-    def _compute_spectrogram(self, waveform):
-        # waveform shape: (1, samples)
-        stft = torch.stft(
-            waveform.squeeze(0),
-            n_fft=self.n_fft,
-            hop_length=self.hop_length,
-            window=self.window,
-            return_complex=True,
-        )
-        stft = torch.abs(stft)  # Magnitude spectrogram
-        # log spectrogram
-        return torch.log1p(stft)
+    def __getitem__(self, index: int):
+        mixture = self.data[index]["mixture"]
+        vocals = self.data[index]["vocals"]
+        drums = self.data[index]["drums"]
+        bass = self.data[index]["bass"]
+        other = self.data[index]["other"]
 
-    def __getitem__(self, idx):
-        chunks = torch.load(os.path.join(self.processed_dir, self.track_files[idx]))
-        chunk = chunks[0]
-        mixture_mag = self._compute_spectrogram(chunk["mixture"]).unsqueeze(
-            0
-        )  # (1, freq, time)
+        mixture_spec = log_spectrogram(mixture, self.nfft, self.hop_length, self.window)
+        vocals_spec = log_spectrogram(vocals, self.nfft, self.hop_length, self.window)
+        drums_spec = log_spectrogram(drums, self.nfft, self.hop_length, self.window)
+        bass_spec = log_spectrogram(bass, self.nfft, self.hop_length, self.window)
+        other_spec = log_spectrogram(other, self.nfft, self.hop_length, self.window)
 
-        sources = ["vocals", "drums", "bass", "other"]
-        targets = torch.stack(
-            [
-                self._compute_spectrogram(chunk[source]).unsqueeze(0)
-                for source in sources
-            ]
-        )  # (4, 1, freq, time)
+        targets = torch.stack([vocals_spec, drums_spec, bass_spec, other_spec])
 
-        return mixture_mag, targets.squeeze(1)  # Shapes: (1, 1025, 169), (4, 1025, 169)
+        return mixture_spec, targets.squeeze(1)

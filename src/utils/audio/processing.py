@@ -16,11 +16,9 @@ def load_audio(path: str, target_sr: int = 44100, mono: bool = True) -> torch.Te
         waveform: (channels, samples) tensor
     """
     waveform, sr = torchaudio.load(path, normalize=True, channels_first=True)
-
     if sr != target_sr:
         resampler = torchaudio.transforms.Resample(sr, target_sr)
         waveform = resampler(waveform)
-
     if mono and waveform.shape[0] > 1:
         waveform = waveform.mean(dim=0, keepdim=True)
 
@@ -42,7 +40,6 @@ def chunk_waveform(
     """
     chunks = []
     for i in range(0, waveform.shape[-1] - chunk_len + 1, hop_len):
-        # pad chunk to chunk_len
         chunk = waveform[..., i : i + chunk_len]
         if chunk.shape[-1] < chunk_len:
             chunk = torch.cat(
@@ -54,98 +51,101 @@ def chunk_waveform(
     return chunks
 
 
-def stft(
+def log_spectrogram(
     waveform: torch.Tensor,
     n_fft: int = 2048,
     hop_length: int = 512,
     window: typing.Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
-    """Compute STFT of waveform.
+    """Compute log magnitude spectrogram.
 
     Args:
-        waveform: (..., samples) tensor
+        waveform: (channels, samples) tensor
         n_fft: FFT size
         hop_length: Hop size between frames
-        window: Optional window function
+        window: Window function
 
     Returns:
-        spectrogram: (..., freq, time, 2) tensor (real, imaginary)
+        spectrogram: (..., freq, time) tensor
     """
     if window is None:
         window = torch.hann_window(n_fft, device=waveform.device)
 
-    return torch.stft(
+    stft = torch.stft(
         waveform,
         n_fft=n_fft,
         hop_length=hop_length,
         window=window,
-        center=True,
-        onesided=True,
-        return_complex=False,
+        return_complex=True,
     )
 
+    return torch.log1p(torch.abs(stft))
 
-def istft(
+
+def mel_spectrogram(
+    waveform: torch.Tensor,
+    sample_rate: int = 44100,
+    n_fft: int = 2048,
+    hop_length: int = 512,
+    n_mels: int = 128,
+    f_min: float = 0.0,
+    f_max: typing.Optional[float] = None,
+) -> torch.Tensor:
+    """Compute mel spectrogram.
+
+    Args:
+        waveform: (channels, samples) tensor
+        sample_rate: Sample rate of audio
+        n_fft: FFT size
+        hop_length: Hop size between frames
+        n_mels: Number of mel bins
+        f_min: Minimum frequency
+        f_max: Maximum frequency
+
+    Returns:
+        spectrogram: (..., freq, time) tensor
+    """
+    mel_transform = torchaudio.transforms.MelSpectrogram(
+        sample_rate=sample_rate,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        n_mels=n_mels,
+        f_min=f_min,
+        f_max=f_max,
+    )
+
+    return mel_transform(waveform)
+
+
+def inverse_log_spectrogram(
     spectrogram: torch.Tensor,
     n_fft: int = 2048,
     hop_length: int = 512,
     window: typing.Optional[torch.Tensor] = None,
-    length: typing.Optional[int] = None,
 ) -> torch.Tensor:
-    """Compute inverse STFT to waveform.
+    """Compute inverse log magnitude spectrogram.
 
     Args:
-        spectrogram: (..., freq, time, 2) tensor
+        spectrogram: (..., freq, time) tensor
         n_fft: FFT size
         hop_length: Hop size between frames
         window: Window function
-        length: Original waveform length
 
     Returns:
-        waveform: (..., samples) tensor
+        waveform: (channels, samples) tensor
     """
     if window is None:
         window = torch.hann_window(n_fft, device=spectrogram.device)
 
-    return torch.istft(
-        spectrogram.permute(0, 2, 1, 3).reshape(-1, n_fft // 2 + 1, 2),
+    # inverse log
+    magnitude = torch.expm1(spectrogram)
+    # inverse STFT
+    waveform = torch.istft(
+        magnitude,
         n_fft=n_fft,
         hop_length=hop_length,
         window=window,
-        center=True,
-        onesided=True,
-        length=length,
+        length=spectrogram.shape[-1] * hop_length,
     )
 
-
-def si_sdr_loss(
-    estimate: torch.Tensor, target: torch.Tensor, eps: float = 1e-8
-) -> torch.Tensor:
-    """Scale-Invariant Signal-to-Distortion Ratio (SI-SDR) loss.
-
-    Args:
-        estimate: Separated signal (..., samples)
-        target: Reference signal (..., samples)
-        eps: Numerical stability term
-
-    Returns:
-        SI-SDR loss value
-    """
-    # Normalize inputs
-    target = target - target.mean(dim=-1, keepdim=True)
-    estimate = estimate - estimate.mean(dim=-1, keepdim=True)
-
-    # Compute target projection
-    alpha = (target * estimate).sum(dim=-1, keepdim=True) / (
-        target.norm(dim=-1, keepdim=True).pow(2) + eps
-    )
-
-    # Calculate SI-SDR
-    projection = alpha * target
-    noise = estimate - projection
-    return (
-        -10
-        * torch.log10(
-            (projection.norm(dim=-1).pow(2) / (noise.norm(dim=-1).pow(2) + eps) + eps)
-        ).mean()
-    )
+    return waveform

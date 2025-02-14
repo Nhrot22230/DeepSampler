@@ -34,7 +34,7 @@ class MultiSourceLoss(nn.Module):
 # ---------------------------------------------------------------------------
 # Weighted Multi-Scale Spectral Loss (MultiSourceMultiScaleSpectralLoss)
 # ---------------------------------------------------------------------------
-class MultiSourceMultiScaleLoss(nn.Module):
+class MultiScaleLoss(nn.Module):
     def __init__(self, weights, scales=[1, 2, 4], distance="l1"):
         """
         Args:
@@ -133,7 +133,7 @@ class VGGFeatureExtractor(nn.Module):
 # ---------------------------------------------------------------------------
 # Composite Spectrogram Loss (Pixel + VGG Feature + VGG Style)
 # ---------------------------------------------------------------------------
-class CompositeSpectrogramLoss(nn.Module):
+class VGGFeatureLoss(nn.Module):
     def __init__(
         self,
         weights,

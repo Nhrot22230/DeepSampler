@@ -1,174 +1,123 @@
-import argparse
-import os
-from typing import Dict, Optional
-
+from typing import Dict, List
 import numpy as np
 import torch
-import torchaudio
-from src.models import SCUNet
-from src.utils.audio import chunk_waveform, load_audio
+from src.utils.audio.processing import (
+    chunk_waveform,
+    load_audio,
+    inverse_log_spectrogram,
+)
 from tqdm import tqdm
 
 
-def load_SCUNET(model_path: str, device: torch.device) -> torch.nn.Module:
-    model = SCUNet()
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.to(device)
-    model.eval()
-    return model
-
-
-def inference_pipeline(
-    model: torch.nn.Module,
-    mixture_path: str,
-    output_path: Optional[str] = None,
-    device: torch.device = torch.device("cpu"),
-    sample_rate: int = 44100,
-    chunk_seconds: float = 2,
-    n_fft: int = 2048,
-    hop_length: int = 512,
-) -> Dict[str, np.ndarray]:
+def overlap_add(
+    chunks: List[torch.Tensor], chunk_len: int, hop: int, window: torch.Tensor
+) -> torch.Tensor:
     """
-    Run the inference pipeline on the given audio mixture.
+    Reconstruye el waveform completo a partir de chunks superpuestos
+    utilizando overlap-add y aplicando una ventana.
 
-    Parameters:
-      model (torch.nn.Module): Loaded SCUNet model.
-      mixture_path (str): Path to the input mixture wav file.
-      output_path (Optional[str]): Directory to save the separated source wav files.
-                                   If None, files are not saved.
-      device (torch.device): Device to perform computations ('cuda' or 'cpu').
-      sample_rate (int): Sampling rate for audio.
-      chunk_seconds (float): Duration of each audio chunk in seconds.
-      n_fft (int): FFT window size.
-      hop_length (int): Hop length for STFT.
+    Args:
+        chunks (List[torch.Tensor]): Lista de chunks (forma: (channels, chunk_len)).
+        chunk_len (int): Longitud de cada chunk (en muestras).
+        hop (int): Desplazamiento entre chunks.
+        window (torch.Tensor): Ventana a aplicar (forma: (1, chunk_len)).
 
     Returns:
-      Dict[str, np.ndarray]: Dictionary with keys "vocals", "drums", "bass", and "other",
-                             containing the separated audio as NumPy arrays.
+        torch.Tensor: Waveform reconstruido (forma: (channels, total_length)).
     """
-    # Create the Hann window for both STFT and ISTFT, and send it to the device.
-    window = torch.hann_window(n_fft, device=device)
+    num_chunks = len(chunks)
+    total_length = (num_chunks - 1) * hop + chunk_len
+    device = chunks[0].device
+    dtype = chunks[0].dtype
+    channels = chunks[0].shape[0]
 
-    # 1. Load the audio and divide it into chunks.
-    waveform = load_audio(mixture_path, target_sr=sample_rate, mono=True)
+    # Inicializar tensores para la señal reconstruida y para acumular pesos de la ventana.
+    output = torch.zeros((channels, total_length), device=device, dtype=dtype)
+    weight = torch.zeros((channels, total_length), device=device, dtype=dtype)
+
+    # Asegurarse de que la ventana tenga forma (1, chunk_len)
+    if window.ndim == 1:
+        window = window.unsqueeze(0)
+
+    # Realizar overlap-add para cada chunk
+    for i, chunk in enumerate(chunks):
+        start = i * hop
+        end = start + chunk_len
+        output[:, start:end] += chunk * window
+        weight[:, start:end] += window
+
+    # Evitar división por cero y normalizar la señal reconstruida.
+    weight[weight == 0] = 1.0
+    output /= weight
+    return output
+
+
+def infer_pipeline(
+    model: torch.nn.Module,
+    mixture_path: str,
+    sample_rate: int = 44100,
+    chunk_seconds: float = 2,
+    overlap: float = 0.0,
+    n_fft: int = 2048,
+    hop_length: int = 512,
+    device: torch.device = torch.device("cpu"),
+) -> Dict[str, np.ndarray]:
+    """
+    Pipeline de inferencia para separación de fuentes.
+    Se carga un archivo mixture.wav, se lo segmenta en chunks (con o sin solapamiento),
+    se procesa cada chunk con el modelo para obtener los espectrogramas de cada fuente,
+    se invierten los espectrogramas a waveform y finalmente se reconstruye la señal completa
+    aplicando overlap-add con una ventana de Hann.
+
+    Args:
+        model (torch.nn.Module): Modelo de separación para la inferencia.
+        mixture_path (str): Ruta al archivo mixture.wav.
+        sample_rate (int, optional): Frecuencia de muestreo del audio. Defaults a 44100.
+        chunk_seconds (float, optional): Duración de cada chunk en segundos. Defaults a 2.
+        overlap (float, optional): Fracción de solapamiento entre chunks (0.0 a <1.0).
+        n_fft (int, optional): Número de puntos para la FFT. Defaults a 2048.
+        hop_length (int, optional): Salto para la STFT. Defaults a 512.
+        device (torch.device, optional): Dispositivo para la inferencia. Defaults a CPU.
+
+    Returns:
+        Dict[str, np.ndarray]: Diccionario con las señales separadas para cada instrumento.
+    """
+    # Calcular la longitud del chunk en muestras y el hop para chunking considerando.
     chunk_len = int(chunk_seconds * sample_rate)
-    chunks = chunk_waveform(waveform, chunk_len, chunk_len)
+    chunk_hop = int(chunk_len * (1 - overlap))
 
-    # Prepare a list to collect separated sources (assuming 4 output channels).
-    separated_sources = [[] for _ in range(4)]
+    # Cargar la mezcla y segmentarla en chunks (posiblemente con solapamiento).
+    mixture_waveform = load_audio(mixture_path, sample_rate)
+    mixture_chunks = chunk_waveform(mixture_waveform, chunk_len, chunk_hop)
 
-    # 2. Process each chunk.
-    with torch.no_grad():
-        for chunk in tqdm(chunks, desc="Processing chunks"):
-            chunk = chunk.squeeze(0).to(device)
-            stft = torch.stft(
-                chunk,
-                n_fft=n_fft,
-                hop_length=hop_length,
-                window=window,
-                return_complex=True,
-            )
-            mag = torch.abs(stft).unsqueeze(0).unsqueeze(0)  # shape: (1, 1, freq, time)
-            phase = torch.angle(stft).cpu().numpy()
-
-            # Run the model.
-            pred = model(mag)
-
-            # Reconstruct each source.
-            for i in range(pred.shape[1]):
-                source_mag = pred[0, i].cpu().numpy()  # (freq, time)
-                source_stft = source_mag * np.exp(1j * phase)
-                # Convert back to tensor and perform inverse STFT.
-                source_stft_tensor = torch.tensor(source_stft, device=device)
-                source_wav = torch.istft(
-                    source_stft_tensor,
-                    n_fft=n_fft,
-                    hop_length=hop_length,
-                    window=window,
-                    length=chunk_len,
-                )
-                separated_sources[i].append(source_wav.cpu().numpy())
-
-    # 3. Concatenate the chunks for each source along the time axis.
-    final_sources = []
-    for source_chunks in separated_sources:
-        final_wave = np.concatenate(source_chunks, axis=-1)
-        final_sources.append(final_wave)
-
-    # 4. Create a dictionary for the sources.
-    sources = {
-        "vocals": final_sources[0],
-        "drums": final_sources[1],
-        "bass": final_sources[2],
-        "other": final_sources[3],
+    # Definir las fuentes a separar.
+    instruments = ["vocals", "drums", "bass", "other"]
+    # Inicializar diccionario para almacenar los chunks predichos para cada instrumento.
+    separated_chunks: Dict[str, List[torch.Tensor]] = {
+        instrument: [] for instrument in instruments
     }
 
-    # Optionally, save each source as a WAV file if output_path is provided.
-    if output_path is not None:
-        os.makedirs(output_path, exist_ok=True)
-        for name, audio in sources.items():
-            save_path = os.path.join(output_path, f"{name}.wav")
-            torchaudio.save(
-                save_path,
-                torch.tensor(audio).unsqueeze(0),
-                sample_rate,
-            )
-            print(f"Saved {name} to {save_path}")
+    # Procesar cada chunk a través del modelo.
+    for chunk in tqdm(mixture_chunks, desc="Separating audio"):
+        chunk = chunk.to(device)
+        with torch.no_grad():
+            # Se asume que el modelo devuelve un tensor donde la primera dimensión indexa
+            # las predicciones para cada instrumento.
+            pred: torch.Tensor = model(chunk)
+        for i, instrument in enumerate(instruments):
+            # Invertir el espectrograma logarítmico para obtener el waveform.
+            waveform_chunk = inverse_log_spectrogram(pred[i], n_fft, hop_length)
+            separated_chunks[instrument].append(waveform_chunk)
 
-    return sources
+    # Reconstruir el waveform completo para cada instrumento utilizando overlap-add.
+    separated_audio: Dict[str, np.ndarray] = {}
+    window = torch.hann_window(chunk_len, device=device).unsqueeze(
+        0
+    )  # Forma: (1, chunk_len)
+    for instrument in instruments:
+        reconstructed = overlap_add(
+            separated_chunks[instrument], chunk_len, chunk_hop, window
+        )
+        separated_audio[instrument] = reconstructed.cpu().numpy()
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Inference pipeline for DeepSampler")
-    parser.add_argument(
-        "--mixture", type=str, required=True, help="Path to the mixture audio file"
-    )
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default=None,
-        help="Directory to save the separated sources (optional)",
-    )
-    parser.add_argument(
-        "--sample_rate",
-        type=int,
-        default=44100,
-        help="Audio sample rate (default: 44100)",
-    )
-    parser.add_argument(
-        "--chunk_seconds",
-        type=float,
-        default=2,
-        help="Duration of each chunk in seconds (default: 2)",
-    )
-    parser.add_argument(
-        "--n_fft", type=int, default=2048, help="FFT window size (default: 2048)"
-    )
-    parser.add_argument(
-        "--hop_length", type=int, default=512, help="Hop length for STFT (default: 512)"
-    )
-    args = parser.parse_args()
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    project_root = os.getcwd()
-    while "src" not in os.listdir(project_root):
-        project_root = os.path.dirname(project_root)
-
-    model_path = os.path.join(project_root, "experiments", "checkpoints", "scunet.pth")
-    model = load_SCUNET(model_path, device)
-
-    # Run the inference pipeline. It will return a dict of NumPy arrays.
-    outputs = inference_pipeline(
-        model,
-        args.mixture,
-        output_path=args.output_dir,
-        device=device,
-        sample_rate=args.sample_rate,
-        chunk_seconds=args.chunk_seconds,
-        n_fft=args.n_fft,
-        hop_length=args.hop_length,
-    )
-
-    # For example, print the shape of each output waveform.
-    for source, waveform in outputs.items():
-        print(f"{source}: shape {waveform.shape}")
+    return separated_audio

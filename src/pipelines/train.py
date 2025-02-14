@@ -1,11 +1,9 @@
 import os
+import time
 from typing import Optional
 
+import numpy as np
 import torch
-from src.models import SCUNet
-from src.utils.data import MUSDB18Dataset
-from src.utils.training import MultiSourceL1Loss
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 
@@ -19,68 +17,85 @@ def train_pipeline(
     total_epochs: int = 40,
     phase1_epochs: int = 20,
 ):
-    """
-    Ejecuta la pipeline de entrenamiento sobre el modelo dado.
+    history = {"epoch_loss": [], "learning_rate": [], "batch_losses": []}
+    start_time = time.time()
 
-    Args:
-        model (torch.nn.Module): Modelo a entrenar.
-        dataloader (torch.utils.data.DataLoader): Dataloader que provee batches de datos.
-        device (torch.device): Dispositivo en el que se ejecuta el entrenamiento.
-        criterion (torch.nn.Module): Función de pérdida.
-        optimizer (torch.optim.Optimizer): Optimizador para actualizar los pesos.
-        scheduler (torch.optim.lr_scheduler._LRScheduler): Scheduler para ajustar el lr.
-        total_epochs (int, optional): Número total de épocas. Default es 40.
-        phase1_epochs (int, optional): Épocas de la primera fase antes de cambiar el LR.
-
-    Returns:
-        torch.nn.Module: Modelo entrenado.
-    """
-    for epoch in tqdm(range(total_epochs), desc="Training Progress", unit="epoch"):
+    for epoch in range(1, total_epochs + 1):
         model.train()
         epoch_loss = 0.0
+        epoch_start = time.time()
+        batch_losses = []
 
-        if epoch == phase1_epochs:
+        if epoch == phase1_epochs + 1:
             print("\nStarting second training phase (lr=1e-4)")
 
         batch_iter = tqdm(
             dataloader,
-            desc=f"Epoch {epoch+1}/{total_epochs}",
+            desc=f"Epoch {epoch}/{total_epochs}",
             leave=False,
             unit="batch",
+            dynamic_ncols=True,
         )
 
-        for inputs, targets in batch_iter:
-            inputs = inputs.to(device)
-            targets = targets.to(device)
-
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
+        for batch_idx, (inputs, targets) in enumerate(batch_iter, 1):
+            inputs, targets = inputs.to(device), targets.to(device)
 
             optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
             loss.backward()
+
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+
             optimizer.step()
 
-            epoch_loss += loss.item()
+            batch_loss = loss.item()
+            epoch_loss += batch_loss
+            batch_losses.append(batch_loss)
+            avg_loss = epoch_loss / batch_idx
+
+            # Calculate moving average of loss
+            window_size = min(50, len(batch_losses))
+            moving_avg_loss = np.mean(batch_losses[-window_size:])
+
             batch_iter.set_postfix(
                 {
                     "lr": f"{optimizer.param_groups[0]['lr']:.1e}",
-                    "batch_loss": f"{loss.item():.4f}",
-                    "avg_loss": f"{epoch_loss/(batch_iter.n+1):.4f}",
+                    "batch_loss": f"{batch_loss:.4f}",
+                    "avg_loss": f"{avg_loss:.4f}",
+                    "mov_avg_loss": f"{moving_avg_loss:.4f}",
+                    "grad_norm": f"{grad_norm:.2f}",
                 }
             )
 
         if scheduler is not None:
             scheduler.step()
-        tqdm.write(
-            f"Epoch {epoch+1} completed"
-            f" - Avg Loss: {epoch_loss/len(dataloader):.4f}"
-            f" - LR: {optimizer.param_groups[0]['lr']:.1e}"
+
+        epoch_time = time.time() - epoch_start
+        remaining_time = (time.time() - start_time) / epoch * (total_epochs - epoch)
+
+        print(
+            f"Epoch {epoch}/{total_epochs} - "
+            f"Avg Loss: {epoch_loss / len(dataloader):.4f} - "
+            f"LR: {optimizer.param_groups[0]['lr']:.1e} - "
+            f"Time: {epoch_time:.2f}s - "
+            f"ETA: {remaining_time:.2f}s"
         )
 
-    return model
+        history["epoch_loss"].append(epoch_loss / len(dataloader))
+        history["learning_rate"].append(optimizer.param_groups[0]["lr"])
+        history["batch_losses"].extend(batch_losses)
+
+    print("\nTraining complete. Total time:", time.time() - start_time, "seconds.")
+    return model, history
 
 
 if __name__ == "__main__":
+    from src.models import SCUNet
+    from src.utils.data import MUSDB18Dataset
+    from src.utils.training import MultiSourceL1Loss
+    from torch.utils.data import DataLoader
+
     project_root = os.getcwd()
     while "src" not in os.listdir(project_root):
         project_root = os.path.dirname(project_root)

@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 from torchmetrics.audio import ScaleInvariantSignalDistortionRatio
+from tqdm import tqdm
 
 
 def evaluation_pipeline(

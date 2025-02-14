@@ -25,7 +25,9 @@ class MUSDB18Dataset(Dataset):
             window=self.window,
             return_complex=True,
         )
-        return torch.abs(stft)  # Magnitude spectrogram
+        stft = torch.abs(stft)  # Magnitude spectrogram
+        # log spectrogram
+        return torch.log1p(stft)
 
     def __getitem__(self, idx):
         chunks = torch.load(os.path.join(self.processed_dir, self.track_files[idx]))

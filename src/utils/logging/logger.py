@@ -16,11 +16,19 @@ class Logger:
         return cls._instance
 
     def __init__(
-        self, name: str = "DeepSampler", level: int = logging.INFO, log_file: str = None
+        self,
+        name: str = "DeepSampler",
+        level: int = logging.INFO,
+        log_file: str = None,
+        debug: bool = False,
     ):
         # Only initialize once
         if hasattr(self, "initialized") and self.initialized:
             return
+
+        # If debug is True, override the logging level to DEBUG.
+        if debug:
+            level = logging.DEBUG
 
         # Create a logger with the specified name and level.
         self.logger = logging.getLogger(name)
@@ -53,3 +61,22 @@ class Logger:
         Return the configured logger instance.
         """
         return self.logger
+
+    def set_debug(self, debug: bool):
+        """
+        Set the logging level to DEBUG if debug is True.
+        """
+        if debug:
+            self.logger.setLevel(logging.DEBUG)
+        else:
+            self.logger.setLevel(logging.NOTSET)
+
+
+# Ejemplo de uso:
+# Para debug activado:
+# main_logger = Logger(debug=True).get_logger()
+#
+# Para debug desactivado:
+# main_logger = Logger(debug=False).get_logger()
+
+main_logger = Logger().get_logger()

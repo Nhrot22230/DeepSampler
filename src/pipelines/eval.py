@@ -1,11 +1,12 @@
 import argparse
 import os
+
+import numpy as np
 import torch
 import torchaudio
-import numpy as np
-from tqdm import tqdm
 from src.models import SCUNet
 from src.utils.audio import chunk_waveform, load_audio
+from tqdm import tqdm
 
 # Configuración basada en el paper
 SAMPLE_RATE = 44100

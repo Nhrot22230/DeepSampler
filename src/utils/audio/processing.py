@@ -123,29 +123,35 @@ def inverse_log_spectrogram(
     hop_length: int = 512,
     window: typing.Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
-    """Compute inverse log magnitude spectrogram.
+    """
+    Compute the inverse of a log-magnitude spectrogram.
 
     Args:
-        spectrogram: (..., freq, time) tensor
-        n_fft: FFT size
-        hop_length: Hop size between frames
-        window: Window function
+        spectrogram: (..., freq, time) tensor containing log-magnitude values.
+        n_fft: FFT size.
+        hop_length: Hop size between frames.
+        window: Window function; if None, a Hann window is used.
 
     Returns:
-        waveform: (channels, samples) tensor
+        waveform: Reconstructed waveform (channels, samples) tensor.
     """
     if window is None:
         window = torch.hann_window(n_fft, device=spectrogram.device)
 
-    # inverse log
+    # Invert the log transform: log(1 + x) --> x = expm1(log_value)
     magnitude = torch.expm1(spectrogram)
-    # inverse STFT
+
+    # Reconstruct a complex spectrogram with zero phase.
+    # Esto crea un tensor complejo donde la parte imaginaria es cero.
+    complex_spec = torch.complex(magnitude, torch.zeros_like(magnitude))
+
+    # Calcular la longitud estimada del waveform.
+    # Se asume que el número de frames es spectrogram.shape[-1].
+    length = spectrogram.shape[-1] * hop_length
+
+    # Aplicar la ISTFT.
     waveform = torch.istft(
-        magnitude,
-        n_fft=n_fft,
-        hop_length=hop_length,
-        window=window,
-        length=spectrogram.shape[-1] * hop_length,
+        complex_spec, n_fft=n_fft, hop_length=hop_length, window=window, length=length
     )
 
-    return waveform
+    return waveform.float()

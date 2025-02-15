@@ -2,8 +2,8 @@
 from .audio_chunk import AudioChunk
 from .processing import (
     chunk_waveform,
-    load_audio,
     inverse_log_spectrogram,
+    load_audio,
     log_spectrogram,
     mel_spectrogram,
 )

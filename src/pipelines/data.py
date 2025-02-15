@@ -29,7 +29,7 @@ def _load_and_chunk(
 def process_track(
     track_folder: str,
     chunk_seconds: int = 2,
-    overlap: float = 0.0,
+    overlap: float = 0,
     sample_rate: int = 44100,
     instruments: Optional[List[str]] = None,
 ) -> List[AudioChunk]:
@@ -74,6 +74,7 @@ def process_track(
         for idx in range(num_chunks):
             chunks[idx][instrument] = instrument_chunks[idx]
 
+    print(f"Procesada pista {track_folder}, Extraídos {len(chunks)} segmentos.")
     return chunks
 
 
@@ -85,6 +86,7 @@ def musdb_pipeline(
     sample_rate: int = 44100,
     nfft: int = 2048,
     hop_length: int = 512,
+    max_samples: Optional[int] = None,
 ) -> torch.utils.data.Dataset:
     """
     Procesa el dataset MUSDB18HQ para entrenar un modelo de separación de fuentes.
@@ -117,11 +119,14 @@ def musdb_pipeline(
         )
         all_chunks.extend(track_chunks)
 
-    dataset = MUSDB18Dataset(
+        if max_samples is not None and len(all_chunks) >= max_samples:
+            all_chunks = all_chunks[:max_samples]
+            tqdm.write(f"Se han procesado {max_samples} segmentos.")
+            break
+
+    return MUSDB18Dataset(
         data=all_chunks,
         window=window,
         nfft=nfft,
         hop_length=hop_length,
     )
-
-    return dataset

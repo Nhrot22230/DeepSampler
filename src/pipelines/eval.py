@@ -1,11 +1,12 @@
+from typing import Dict, List, Tuple
+
+import numpy as np
 import torch
+from src.pipelines.inference import infer_pipeline
+from src.utils.audio.processing import load_audio
 from torch.utils.data import DataLoader
 from torchmetrics.audio import ScaleInvariantSignalDistortionRatio
 from tqdm import tqdm
-from typing import Tuple, List, Dict
-import numpy as np
-from src.utils.audio.processing import load_audio
-from src.pipelines.inference import infer_pipeline
 
 
 def eval_pipeline(

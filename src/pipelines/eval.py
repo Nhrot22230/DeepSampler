@@ -1,107 +1,77 @@
-import argparse
-import os
-import torch
-import torchaudio
+from typing import Dict, List, Tuple
+
 import numpy as np
+import torch
+from src.pipelines.inference import infer_pipeline
+from src.utils.audio.processing import load_audio
+from torch.utils.data import DataLoader
+from torchmetrics.audio import ScaleInvariantSignalDistortionRatio
 from tqdm import tqdm
-from src.models import SCUNet
-from src.utils.audio import chunk_waveform, load_audio
-
-# Configuración basada en el paper
-SAMPLE_RATE = 44100
-CHUNK_SECONDS = 2
-N_FFT = 2048
-HOP_LENGTH = 512
-WINDOW = torch.hann_window(N_FFT)
 
 
-def load_SCUNET(model_path, device):
-    model = SCUNet()
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.to(device)
-    model.eval()
-    return model
+def eval_pipeline(
+    model: torch.nn.Module,
+    dataloader: DataLoader,
+    sample_rate: int = 44100,
+    chunk_seconds: float = 2,
+    overlap: float = 0.0,
+    n_fft: int = 2048,
+    hop_length: int = 512,
+    device: torch.device = torch.device("cpu"),
+) -> Tuple[Dict[str, float], Dict[str, List[float]]]:
+    """
+    Pipeline de evaluación que:
+      - Separa la señal de mezcla utilizando el infer_pipeline.
+      - Calcula el SI‑SDR entre las señales separadas y las señales de referencia (ground truth)
+        para cada fuente.
 
+    Se espera que cada muestra en el DataLoader sea un diccionario con las claves:
+        - "mixture": Ruta al archivo mixture.wav.
+        - "vocals", "drums", "bass", "other": Rutas a los archivos de ground truth para cada fuente.
 
-def inference_pipeline(model, mixture_path, output_dir, device="cuda"):
-    # 1. Cargar la señal y dividirla en chunks (2 segundos cada uno)
-    waveform = load_audio(mixture_path)
-    chunk_len = CHUNK_SECONDS * SAMPLE_RATE
-    chunks = chunk_waveform(waveform, chunk_len, chunk_len)
+    Args:
+        model (torch.nn.Module): Modelo de separación.
+        dataloader (DataLoader): DataLoader que provee muestras de evaluación.
+        sample_rate (int, optional): Frecuencia de muestreo. Defaults a 44100.
+        chunk_seconds (float, optional): Duración de cada chunk en segundos. Defaults a 2.
+        overlap (float, optional): Fracción de solapamiento entre chunks (0.0 a <1.0). Defaults a 0.
+        n_fft (int, optional): Número de puntos para la FFT. Defaults a 2048.
+        hop_length (int, optional): Salto para la STFT. Defaults a 512.
+        device (torch.device, optional): Dispositivo para la inferencia. Defaults a CPU.
 
-    # Preparar una lista para cada canal de salida (4 canales en total)
-    separated_sources = [[] for _ in range(4)]  # out_channels = 4
+    Returns:
+        Tuple[Dict[str, float], Dict[str, List[float]]]:
+            - Diccionario con el SI‑SDR promedio para cada fuente.
+            - Diccionario con la lista de SI‑SDR para cada muestra por fuente.
+    """
+    instruments = ["vocals", "drums", "bass", "other"]
+    all_scores: Dict[str, List[float]] = {inst: [] for inst in instruments}
 
-    # 2. Procesar cada chunk
-    with torch.no_grad():
-        for chunk in tqdm(chunks, desc="Processing chunks"):
-            # Calcular STFT (obtener magnitud y fase)
-            stft = torch.stft(
-                chunk.squeeze(0), N_FFT, HOP_LENGTH, window=WINDOW, return_complex=True
-            )
-            mag = torch.abs(stft).unsqueeze(0).unsqueeze(0).to(device)
-            phase = torch.angle(stft).cpu().numpy()
-            # Inferencia del modelo
-            pred = model(mag)
-
-            # Reconstruir cada fuente para el chunk actual
-            for i in range(pred.shape[1]):
-                # Obtener la magnitud predicha para el canal i
-                source_mag = pred[0, i].cpu().numpy()  # (freq, time)
-                # Reconstruir el espectro complejo usando la fase original
-                source_stft = source_mag * np.exp(1j * phase)
-                # Reconstruir la señal de audio mediante ISTFT
-                source_wav = torch.istft(
-                    torch.tensor(source_stft),
-                    N_FFT,
-                    HOP_LENGTH,
-                    window=WINDOW,
-                    length=chunk.shape[-1],
-                )
-                # Agregar el chunk reconstruido a la lista correspondiente
-                separated_sources[i].append(source_wav.numpy())
-
-    # 3. Concatenar los chunks para cada fuente a lo largo del tiempo
-    final_sources = []
-    for i in range(len(separated_sources)):
-        # Concatenar a lo largo del eje temporal (axis=-1)
-        final_wave = np.concatenate(separated_sources[i], axis=-1)
-        final_sources.append(final_wave)
-
-    # 4. Guardar cada fuente en un archivo wav
-    sources = {
-        "vocals": final_sources[0],
-        "drums": final_sources[1],
-        "bass": final_sources[2],
-        "other": final_sources[3],
-    }
-
-    os.makedirs(output_dir, exist_ok=True)
-    for name, audio in sources.items():
-        torchaudio.save(
-            os.path.join(output_dir, f"{name}.wav"),
-            torch.tensor(audio).unsqueeze(0),
-            SAMPLE_RATE,
+    for sample in tqdm(dataloader, desc="Evaluating"):
+        mixture_path = sample["mixture"]
+        separated_audio = infer_pipeline(
+            model=model,
+            mixture_path=mixture_path,
+            sample_rate=sample_rate,
+            chunk_seconds=chunk_seconds,
+            overlap=overlap,
+            n_fft=n_fft,
+            hop_length=hop_length,
+            device=device,
         )
 
+        for inst in instruments:
+            gt_path = sample[inst]
+            gt_audio = load_audio(gt_path, sample_rate).to(device)
+            pred_audio = torch.tensor(separated_audio[inst], device=device)
+            min_len = min(gt_audio.shape[1], pred_audio.shape[1])
+            gt_audio = gt_audio[:, :min_len]
+            pred_audio = pred_audio[:, :min_len]
+            si_sdr_metric = ScaleInvariantSignalDistortionRatio().to(device)
+            score = si_sdr_metric(pred_audio, gt_audio)
+            all_scores[inst].append(score.item())
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--mixture", type=str, required=True)
-    parser.add_argument("--output_dir", type=str, required=True)
-    args = parser.parse_args()
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # Configurar paths
-    project_root = os.getcwd()
-    while "src" not in os.listdir(project_root):
-        project_root = os.path.dirname(project_root)
-
-    # Cargar modelo
-    model = load_SCUNET(
-        os.path.join(project_root, "experiments", "checkpoints", "scunet.pth"), device
-    )
-
-    # Ejecutar pipeline
-    inference_pipeline(model, args.mixture, args.output_dir, device)
+    avg_scores = {
+        inst: np.mean(scores) if scores else 0.0 for inst, scores in all_scores.items()
+    }
+    return avg_scores, all_scores

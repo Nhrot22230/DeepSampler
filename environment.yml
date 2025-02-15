@@ -1,17 +1,37 @@
 project:
   name: DeepSampler
+  description: >
+    DeepSampler es un proyecto de Deep Learning orientado a la separación de fuentes musicales.
+    Desarrollado por estudiantes de la Pontificia Universidad Católica del Perú en el curso de Deep Learning,
+    el objetivo es emplear técnicas avanzadas de procesamiento de audio y redes neuronales para separar las
+    mezclas musicales en sus componentes individuales (por ejemplo, batería, bajo, voces, etc.).
+  version: "0.0.2"
+  university: "Pontificia Universidad Católica del Perú"
+  course: "Deep Learning"
   authors:
     - name: "Diego Izaguirre"
       student_id: "A01024053"
+      email: "diego@example.com"
     - name: "Fabian Prado"
       student_id: "A01024053"
+      email: "fabian@example.com"
     - name: "Fernando Candia"
       student_id: "A01024053"
-  version: "0.0.1"
+      email: "a20213812@pucp.edu.pe"
   dataset:
     name: MUSDB18_HQ
+    description: >
+      MUSDB18_HQ es un dataset ampliamente reconocido en la comunidad de separación de fuentes.
+      Proporciona pistas de audio y sus mezclas en alta calidad, siendo utilizado para el entrenamiento
+      y evaluación de modelos de separación de audio.
     url: "https://zenodo.org/records/3338373/files/musdb18hq.zip?download=1"
     paths:
       raw: "data/raw"
       musdb18hq: "data/musdb18hq"
       processed: "data/processed"
+  acknowledgements: >
+    Agradecemos a la comunidad de código abierto por las herramientas y recursos proporcionados,
+    en especial a los desarrolladores del dataset MUSDB18_HQ y a los mantenedores de las bibliotecas
+    utilizadas en este proyecto.
+  contact: >
+    Para mayor información, sugerencias o consultas, por favor contacta a alguno de los autores.

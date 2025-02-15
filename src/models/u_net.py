@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
-from src.models.components import DecoderBlock, EncoderBlock
+import torch.nn.functional as F
+
+from .components import DecoderBlock, EncoderBlock
 
 
 class SimpleUNet(nn.Module):
@@ -12,17 +14,8 @@ class SimpleUNet(nn.Module):
         depth: int = 4,
         dropout_prob: float = 0.3,
     ):
-        """
-        Arquitectura U-Net para separación de fuentes de audio.
-
-        Args:
-            input_channels: Canales de entrada (1 para espectrogramas mono)
-            output_channels: Canales de salida (4 stems: drums, bass, vocals, other)
-            base_channels: Canales base para la primera capa (se duplica en cada nivel)
-            depth: Profundidad de la red (número de bloques encoder/decoder)
-            dropout_prob: Probabilidad de dropout
-        """
         super().__init__()
+        self.depth = depth
 
         # Configuración de capas
         self.encoders = nn.ModuleList()
@@ -44,7 +37,7 @@ class SimpleUNet(nn.Module):
         )
         bottleneck_channels = current_channels * 2
 
-        # Construcción decoder (en orden inverso)
+        # Construcción decoder
         for i in reversed(range(depth)):
             skip_channels = base_channels * (2**i)
             self.decoders.append(
@@ -58,11 +51,18 @@ class SimpleUNet(nn.Module):
                 )
             )
 
-        # Capa final de salida
+        # Capa final
         self.final_conv = nn.Conv2d(base_channels, output_channels, kernel_size=1)
-        self.activation = nn.Tanh()
+        self.activation = nn.ReLU()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Padding dinámico para dimensiones divisibles por 2^depth
+        h, w = x.size(2), x.size(3)
+        pad_factor = 2**self.depth
+        pad_h = (pad_factor - (h % pad_factor)) % pad_factor
+        pad_w = (pad_factor - (w % pad_factor)) % pad_factor
+        x = F.pad(x, (0, pad_w, 0, pad_h))  # Padding: (left, right, top, bottom)
+
         # Encoding
         skip_connections = []
         for encoder in self.encoders:
@@ -77,8 +77,9 @@ class SimpleUNet(nn.Module):
             skip = skip_connections[-(i + 1)]
             x = decoder(x, skip)
 
-        # Salida final
-        return self.activation(self.final_conv(x))
+        # Ajuste final de dimensiones
+        x = self.activation(self.final_conv(x))
+        return x[:, :, :h, :w]  # Crop a dimensiones originales
 
     @property
     def device(self):

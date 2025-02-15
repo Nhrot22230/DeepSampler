@@ -58,62 +58,69 @@ En este proyecto proponemos **DeepSampler**, una novedosa arquitectura basada en
 A continuación se muestra un ejemplo de una estructura de directorios robusta y escalable para un proyecto de deep learning. Esta estructura está diseñada para separar las responsabilidades, tales como manejo de datos, definición del modelo, pipelines de entrenamiento, evaluación y experimentación, e incorpora las mejores prácticas en investigación y desarrollo de software para machine learning.
 
 ```
-project_root/
-├── configs/                   # Archivos de configuración para experimentos y parámetros del modelo.
-│   ├── config.yaml            # Archivo de configuración principal (ej. parámetros del modelo, rutas de datos, etc.)
-│   └── experiments/           # Configuraciones específicas para experimentos (opcional)
-│       ├── exp1.yaml
-│       └── exp2.yaml
-├── data/                      # Archivos de datos.
-│   ├── external/              # Datos de fuentes externas.
-│   ├── raw/                   # Datos originales sin modificar.
-│   └── processed/             # Datos procesados y limpios para el entrenamiento.
-├── experiments/               # Artefactos y logs de experimentos.
-│   ├── logs/                  # Logs de entrenamiento (ej. TensorBoard, WandB, etc.)
-│   ├── checkpoints/           # Pesos guardados del modelo y checkpoints.
-│   └── results/               # Resultados de evaluación, figuras o reportes.
-├── notebooks/                 # Notebooks de Jupyter para exploración, análisis y prototipado.
+DeepSampler/
+├── configs/                   # Archivos de configuración para experimentos y parámetros globales.
+│   ├── config.yaml            # Configuración principal (parámetros del modelo, rutas, etc.).
+│   └── experiments/           # Configuraciones específicas para distintos experimentos.
+├── data/                      # Datos utilizados en el proyecto.
+│   ├── raw/                   # Datos originales sin procesar.
+|   └── musdb18hq/             # MUSDB18_HQ dataset.
+├── experiments/               # Resultados, logs y checkpoints de los entrenamientos.
+│   ├── checkpoints/           # Pesos guardados y checkpoints de los modelos.
+│   ├── logs/                  # Logs generados durante los entrenamientos.
+│   └── results/               # Resultados de evaluación y salidas de los modelos.
+├── notebooks/                 # Notebooks Jupyter para exploración, análisis y prototipado.
+│   ├── analysis.ipynb
 │   ├── exploratory.ipynb
-│   └── analysis.ipynb
-├── scripts/                   # Scripts en Shell o Python para ejecutar tareas.
-│   ├── run_training.sh        # Script para iniciar el entrenamiento.
-│   └── run_evaluation.sh      # Script para ejecutar la evaluación.
+│   ├── loss.ipynb
+│   └── trail_error.ipynb
+├── environment.yml            # Archivo de entorno Conda (si se utiliza Conda) con todas las dependencias.
+├── Makefile                   # Makefile para automatizar tareas comunes (instalación, ejecución, etc.).
+├── README.md                  # Documentación general del proyecto e instrucciones de uso.
+├── requirements.txt           # Dependencias a instalar vía pip.
+├── scripts/                   # Scripts de ejecución en Shell para tareas específicas.
+├── setup.py                   # Script de instalación del paquete (si se desea empaquetar el proyecto).
+├── setup.sh                   # Script de configuración inicial (por ejemplo, para crear entornos o instalar dependencias).
 ├── src/                       # Código fuente principal del proyecto.
 │   ├── __init__.py
-│   ├── models/                # Definiciones y arquitecturas del modelo.
+│   ├── models/                # Definición y arquitecturas de los modelos.
 │   │   ├── __init__.py
-│   │   ├── base_model.py      # Clases base o utilidades comunes para modelos.
-│   │   └── sde_model.py       # Ejemplo de modelo para detección de eventos sonoros.
-│   ├── pipelines/             # Pipelines de extremo a extremo (entrenamiento, inferencia, etc.).
+│   │   ├── deep_sampler.py    # Modelo DeepSampler.
+│   │   ├── dense_net.py       # Modelo basado en DenseNet.
+│   │   ├── scunet.py          # Modelo SCUNet.
+│   │   ├── u_net.py           # Modelo U-Net.
+│   │   └── components/        # Componentes reutilizables para la construcción de modelos.
+│   │       ├── decoder.py
+│   │       ├── encoder.py
+│   │       ├── freq_conv.py
+│   │       └── __init__.py
+│   ├── pipelines/             # Pipelines de extremo a extremo (entrenamiento, inferencia, evaluación, etc.).
 │   │   ├── __init__.py
-|   |   ├── data.py            # Código para inicializar datos
-│   │   └── train.py           # Código para inicializar modelo, ciclo de entrenamiento, etc.
-│   ├── evaluation/            # Código de evaluación y pruebas.
-│   │   ├── __init__.py
-│   │   ├── tester.py          # Script para ejecutar inferencia o ciclos de prueba.
-│   │   └── metrics.py         # Métricas de evaluación y funciones de análisis.
-│   └── utils/                 # Funciones utilitarias y ayudantes (logging, configuración, etc.).
-│       ├── __init__.py
-│       ├── logger.py          # Configuración personalizada de logging.
-│       ├── config_parser.py   # Utilidades para parsear archivos de configuración.
-│       └── helpers.py         # Funciones de ayuda generales.
-├── tests/                     # Pruebas unitarias e integradas.
-│   ├── __init__.py
-│   ├── data/                  # Manejo de datos: definiciones de datasets, cargadores, aumentaciones.
-│   │   ├── __init__.py
-│   │   ├── dataset            # Clases de dataset personalizadas.
-│   │   └── transforms         # Utilidades de aumentación y transformación de datos.
-│   ├── training/              # Utilidades de entrenamiento, entrenadores y optimizadores.
-│   │   ├── __init__.py
-│   │   ├── trainer            # Ciclos de entrenamiento encapsulados.
-│   │   └── optimizer          # Configuraciones de optimizadores y schedulers de tasa de aprendizaje.
-│   ├── test_data.py           # Pruebas para pipelines de datos.
-│   ├── test_model.py          # Pruebas para arquitecturas de modelos.
-│   └── test_pipeline.py       # Pruebas para pipelines de entrenamiento/inferencia.
-├── environment.yml            # Archivo de entorno Conda (si se utiliza Conda).
-├── requirements.txt           # Dependencias pip.
-├── README.md                  # Vista general del proyecto e instrucciones de instalación.
-└── setup.py                   # Script de instalación si se empaqueta el proyecto.
+│   │   ├── data.py            # Código para la inicialización y manejo de datos.
+│   │   ├── eval.py            # Pipeline de evaluación.
+│   │   ├── inference.py       # Pipeline de inferencia.
+│   │   └── train.py           # Pipeline de entrenamiento.
+│   └── utils/                 # Funciones utilitarias y herramientas de soporte.
+│       ├── logging/           # Configuración y utilidades para el logging personalizado.
+│       │   ├── __init__.py
+│       │   └── logger.py
+│       ├── training/          # Utilidades para el entrenamiento (pérdidas, entrenadores, etc.).
+│       │   ├── __init__.py
+│       │   ├── loss.py        # Definición de funciones de pérdida.
+│       │   └── trainer.py     # Implementación del ciclo de entrenamiento.
+│       ├── data/              # Utilidades relacionadas con el manejo y preprocesamiento de datos.
+│       │   └── dataset/       # Definición de datasets personalizados.
+│       │       ├── __init__.py
+│       │       └── musdb18_dataset.py
+│       └── audio/             # Procesamiento y manipulación de audio.
+│           ├── __init__.py
+│           ├── audio_chunk.py
+│           └── processing.py
+└── tests/                     # Pruebas unitarias e integradas para el proyecto.
+    ├── __init__.py
+    ├── test_data.py
+    ├── test_model.py
+    └── test_pipeline.py
 ```
 
 ---

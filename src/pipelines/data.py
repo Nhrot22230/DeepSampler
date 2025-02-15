@@ -74,7 +74,6 @@ def process_track(
         for idx in range(num_chunks):
             chunks[idx][instrument] = instrument_chunks[idx]
 
-    print(f"Procesada pista {track_folder}, Extraídos {len(chunks)} segmentos.")
     return chunks
 
 

@@ -1,6 +1,6 @@
 # flake8: noqa
-from src.utils.training.loss import (
-    CompositeSpectrogramLoss,
+from .loss import (
+    MultiScaleLoss,
     MultiSourceLoss,
-    MultiSourceMultiScaleLoss,
+    VGGFeatureLoss,
 )

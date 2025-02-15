@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from src.models.components import DecoderBlock, EncoderBlock
+
+from .components import DecoderBlock, EncoderBlock
 
 
 class SimpleUNet(nn.Module):

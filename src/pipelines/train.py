@@ -87,7 +87,7 @@ def train_pipeline(
         history["batch_losses"].extend(batch_losses)
 
     print("\nTraining complete. Total time:", time.time() - start_time, "seconds.")
-    return model, history
+    return history
 
 
 if __name__ == "__main__":

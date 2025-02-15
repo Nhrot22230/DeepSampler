@@ -1,182 +1,132 @@
-import logging
 import os
-from typing import Dict, List, Union
+from typing import List, Optional
 
 import torch
-from sklearn.model_selection import train_test_split
-from src.utils.audio import AudioChunk, chunk_waveform, load_audio
-from src.utils.data import MUSDB18Dataset
+from src.utils.audio.audio_chunk import AudioChunk
+from src.utils.audio.processing import chunk_waveform, load_audio
+from src.utils.data.dataset import MUSDB18Dataset
+from src.utils.logging import main_logger as logger
 from tqdm import tqdm
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-)
+
+def _load_and_chunk(
+    file_path: str, chunk_len: int, hop_len: int, sample_rate: int
+) -> Optional[List[torch.Tensor]]:
+    """
+    Función auxiliar que carga un archivo de audio y lo divide en chunks.
+    """
+    if not os.path.exists(file_path):
+        logger.warning(f"Archivo no encontrado: {file_path}")
+        return None
+    try:
+        audio = load_audio(file_path, sample_rate)
+        return chunk_waveform(audio, chunk_len, hop_len)
+    except Exception as e:
+        logger.error(f"Error procesando {file_path}: {e}")
+        return None
 
 
 def process_track(
-    track_path: str,
+    track_folder: str,
     chunk_seconds: int = 2,
+    overlap: float = 0,
     sample_rate: int = 44100,
-    instruments: List[str] = None,
-) -> List[Dict[str, AudioChunk]]:
+    instruments: Optional[List[str]] = None,
+) -> List[AudioChunk]:
     """
-    Process a single track by loading the audio files and chunking them.
+    Procesa una pista completa cargando y segmentando los archivos de audio.
 
     Args:
-        track_path (str): Path to the track directory.
-        chunk_seconds (int, optional): Duration of each chunk in seconds. Defaults to 2.
-        sample_rate (int, optional): Sampling rate for loading audio. Defaults to 44100.
-        instruments (List[str], optional): List of instrument names to process.
+        track_folder (str): Ruta a la carpeta de la pista.
+        chunk_seconds (int, optional): Duración de cada segmento en segundos.
+        overlap (float, optional): Porcentaje de solapamiento entre segmentos.
+        sample_rate (int, optional): Frecuencia de muestreo para cargar el audio.
+        instruments (List[str], optional): Lista de nombres de instrumentos a procesar.
+            Defaults a ["bass", "drums", "vocals", "other"].
 
     Returns:
-        List[Dict[str, AudioChunk]]: A list of dictionaries,
-          each containing chunked audio for the given instruments.
+        List[AudioChunk]: Lista de chunks procesados, donde cada chunk es un diccionario:
+            "mixture", "bass", "drums", "vocals" y "other".
     """
     if instruments is None:
-        instruments = ["mixture", "bass", "drums", "other", "vocals"]
+        instruments = ["bass", "drums", "vocals", "other"]
 
     chunk_len = chunk_seconds * sample_rate
+    hop_len = int(chunk_len * (1 - overlap))
 
-    audio_files = {}
-    for instrument in instruments:
-        file_path = os.path.join(track_path, f"{instrument}.wav")
-        if not os.path.exists(file_path):
-            logging.warning(f"Missing file: {file_path}")
-            continue
-        try:
-            audio_files[instrument] = load_audio(
-                file_path, target_sr=sample_rate, mono=True
-            )
-        except Exception as e:
-            logging.error(f"Error loading {file_path}: {e}")
-            continue
-
-    if "mixture" not in audio_files:
-        logging.error(f"Track {track_path} has no mixture file. Skipping processing.")
+    mixture_path = os.path.join(track_folder, "mixture.wav")
+    mixture_chunks = _load_and_chunk(mixture_path, chunk_len, hop_len, sample_rate)
+    if mixture_chunks is None:
+        logger.error(f"No se pudo cargar la mezcla en {track_folder}")
         return []
 
-    chunks_dict = {}
-    for instrument, waveform in audio_files.items():
-        chunks_dict[instrument] = chunk_waveform(waveform, chunk_len, chunk_len)
+    chunks: List[AudioChunk] = [
+        AudioChunk(mixture=chunk, bass=None, drums=None, vocals=None, other=None)
+        for chunk in mixture_chunks
+    ]
 
-    num_chunks = len(chunks_dict["mixture"])
-    processed_chunks = []
-    for idx in range(num_chunks):
-        chunk_data = {}
-        for instrument in instruments:
-            if instrument in chunks_dict and idx < len(chunks_dict[instrument]):
-                chunk_data[instrument] = chunks_dict[instrument][idx]
-            else:
-                chunk_data[instrument] = None
-        processed_chunks.append(chunk_data)
+    for instrument in instruments:
+        file_path = os.path.join(track_folder, f"{instrument}.wav")
+        instrument_chunks = _load_and_chunk(file_path, chunk_len, hop_len, sample_rate)
+        if instrument_chunks is None:
+            continue
+        num_chunks = min(len(chunks), len(instrument_chunks))
+        for idx in range(num_chunks):
+            chunks[idx][instrument] = instrument_chunks[idx]
 
-    del audio_files, chunks_dict
-    return processed_chunks
-
-
-def save_track_chunks(chunks: List[Dict[str, AudioChunk]], save_path: str) -> None:
-    """
-    Save processed track chunks to a .pt file.
-
-    Args:
-        chunks (List[Dict[str, AudioChunk]]): List of dictionaries containing chunks.
-        save_path (str): File path to save the processed chunks.
-    """
-    torch.save(chunks, save_path)
-    logging.info(f"Saved processed track to {save_path}")
+    print(f"Procesada pista {track_folder}, Extraídos {len(chunks)} segmentos.")
+    return chunks
 
 
 def musdb_pipeline(
     musdb_path: str,
-    data_root: str,
+    window: torch.Tensor,
     chunk_seconds: int = 2,
+    overlap: float = 0.0,
     sample_rate: int = 44100,
-    test_size: float = 0.2,
-    random_state: int = 42,
-    return_dataset: bool = False,
-    instruments: List[str] = None,
-) -> Union[None, torch.utils.data.Dataset]:
+    nfft: int = 2048,
+    hop_length: int = 512,
+    max_samples: Optional[int] = None,
+) -> torch.utils.data.Dataset:
     """
-    Processes a music source separation dataset by chunking each track and splitting the
-    processed data into train and test sets.
+    Procesa el dataset MUSDB18HQ para entrenar un modelo de separación de fuentes.
 
     Args:
-        musdb_path (str): Path to the directory containing MUSDB tracks.
-        data_root (str): Root directory for saving processed data.
-        chunk_seconds (int, optional): Duration of each audio chunk. Defaults to 2.
-        sample_rate (int, optional): Audio sample rate. Defaults to 44100.
-        test_size (float, optional): Proportion of tracks to use as test set.
-        random_state (int, optional): Random seed for reproducibility. Defaults to 42.
-        return_dataset (bool, optional): If True, returns a torch.utils.data.Dataset.
-        instruments (List[str], optional): List of instruments to process.
+        musdb_path (str): Ruta a la carpeta con las pistas de MUSDB18HQ.
+        window (torch.Tensor): Ventana a utilizar en la STFT.
+        chunk_seconds (int, optional): Duración de cada segmento en segundos.
+        overlap (float, optional): Porcentaje de solapamiento entre segmentos.
+        sample_rate (int, optional): Frecuencia de muestreo para cargar el audio.
+        nfft (int, optional): Tamaño de la ventana para la transformada de Fourier.
+        hop_length (int, optional): Tamaño del salto para la transformada de Fourier.
 
     Returns:
-        Union[None, torch.utils.data.Dataset]: Returns a dataset if requested,
-          otherwise None.
+        torch.utils.data.Dataset: Dataset de PyTorch con los datos procesados.
     """
-    output_dir = os.path.join(data_root, "processed")
-    train_dir = os.path.join(output_dir, "train")
-    test_dir = os.path.join(output_dir, "test")
-    os.makedirs(train_dir, exist_ok=True)
-    os.makedirs(test_dir, exist_ok=True)
+    all_chunks = []
+    track_dirs = [
+        os.path.join(musdb_path, d)
+        for d in os.listdir(musdb_path)
+        if os.path.isdir(os.path.join(musdb_path, d))
+    ]
 
-    tracks = sorted(os.listdir(musdb_path))
-    train_tracks, test_tracks = train_test_split(
-        tracks, test_size=test_size, random_state=random_state
-    )
-    logging.info(f"Total tracks found: {len(tracks)}")
-    logging.info(
-        f"Train/Test split: {len(train_tracks)} train / {len(test_tracks)} test"
-    )
-
-    for track in tqdm(train_tracks, desc="Processing train tracks"):
-        track_path = os.path.join(musdb_path, track)
+    for track_dir in tqdm(track_dirs, desc="Procesando pistas"):
         track_chunks = process_track(
-            track_path,
+            track_folder=track_dir,
             chunk_seconds=chunk_seconds,
+            overlap=overlap,
             sample_rate=sample_rate,
-            instruments=instruments,
         )
-        if track_chunks:
-            save_track_chunks(track_chunks, os.path.join(train_dir, f"{track}.pt"))
-        else:
-            logging.warning(f"Skipping track {track} due to processing issues.")
+        all_chunks.extend(track_chunks)
 
-    # Process and save test tracks.
-    for track in tqdm(test_tracks, desc="Processing test tracks"):
-        track_path = os.path.join(musdb_path, track)
-        track_chunks = process_track(
-            track_path,
-            chunk_seconds=chunk_seconds,
-            sample_rate=sample_rate,
-            instruments=instruments,
-        )
-        if track_chunks:
-            save_track_chunks(track_chunks, os.path.join(test_dir, f"{track}.pt"))
-        else:
-            logging.warning(f"Skipping track {track} due to processing issues.")
+        if max_samples is not None and len(all_chunks) >= max_samples:
+            all_chunks = all_chunks[:max_samples]
+            tqdm.write(f"Se han procesado {max_samples} segmentos.")
+            break
 
-    if return_dataset:
-        logging.info("Creating and returning a MusdbDataset from the training data.")
-        return MUSDB18Dataset(train_dir)
-
-    return None
-
-
-if __name__ == "__main__":
-    project_root = os.getcwd()
-    while "src" not in os.listdir(project_root):
-        project_root = os.path.dirname(project_root)
-
-    data_root = os.path.join(project_root, "data")
-    musdb_path = os.path.join(project_root, "data", "musdb18hq", "train")
-
-    musdb_pipeline(
-        musdb_path=musdb_path,
-        data_root=data_root,
-        chunk_seconds=2,
-        sample_rate=44100,
-        test_size=0.2,
-        random_state=42,
-        return_dataset=False,
+    return MUSDB18Dataset(
+        data=all_chunks,
+        window=window,
+        nfft=nfft,
+        hop_length=hop_length,
     )

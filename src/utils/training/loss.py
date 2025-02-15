@@ -1,3 +1,5 @@
+from typing import List
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -8,18 +10,18 @@ import torchvision.models as models
 # Weighted L1 Loss (MultiSourceL1Loss)
 # ---------------------------------------------------------------------------
 class MultiSourceLoss(nn.Module):
-    def __init__(self, weights, distance="l1"):
+    def __init__(self, weights: List[float], distance: str = "l1"):
         """
         Args:
             weights (list of float): A list of weights for each channel.
         """
         super().__init__()
-        self.weights = weights
+        self.weights = [w / sum(weights) for w in weights]
         self.l1_loss = nn.L1Loss(reduction="mean")
 
-        if distance == "l1":
+        if distance.lower() == "l1":
             self.loss = nn.L1Loss(reduction="mean")
-        elif distance == "l2":
+        elif distance.lower() == "l2":
             self.loss = nn.MSELoss(reduction="mean")
         else:
             raise ValueError(f"Invalid distance: {distance}")
@@ -34,8 +36,10 @@ class MultiSourceLoss(nn.Module):
 # ---------------------------------------------------------------------------
 # Weighted Multi-Scale Spectral Loss (MultiSourceMultiScaleSpectralLoss)
 # ---------------------------------------------------------------------------
-class MultiSourceMultiScaleLoss(nn.Module):
-    def __init__(self, weights, scales=[1, 2, 4], distance="l1"):
+class MultiScaleLoss(nn.Module):
+    def __init__(
+        self, weights: List[float], scales: List[int] = [1, 2, 4], distance: str = "l1"
+    ):
         """
         Args:
             channel_weights (list of float): Pesos para cada canal (deben estar normalizados).
@@ -46,9 +50,9 @@ class MultiSourceMultiScaleLoss(nn.Module):
         self.channel_weights = [w / sum(weights) for w in weights]
         self.scales = scales
 
-        if distance == "l1":
+        if distance.lower() == "l1":
             self.loss = nn.L1Loss(reduction="mean")
-        elif distance == "l2":
+        elif distance.lower() == "l2":
             self.loss = nn.MSELoss(reduction="mean")
         else:
             raise ValueError(f"Invalid distance: {distance}")
@@ -89,7 +93,7 @@ class MultiSourceMultiScaleLoss(nn.Module):
 # VGG Feature Extractor
 # ---------------------------------------------------------------------------
 class VGGFeatureExtractor(nn.Module):
-    def __init__(self, selected_layers=[3, 8, 17, 26]):
+    def __init__(self, selected_layers: List[int] = [3, 8, 17, 26]):
         """
         Se extraen las salidas de las capas indicadas (por índice) del VGG19.
         Por ejemplo, en este caso se extraen:
@@ -133,14 +137,14 @@ class VGGFeatureExtractor(nn.Module):
 # ---------------------------------------------------------------------------
 # Composite Spectrogram Loss (Pixel + VGG Feature + VGG Style)
 # ---------------------------------------------------------------------------
-class CompositeSpectrogramLoss(nn.Module):
+class VGGFeatureLoss(nn.Module):
     def __init__(
         self,
-        weights,
-        pixel_weight=0.5,
-        feature_weight=0.25,
-        style_weight=0.25,
-        vgg_layers=[3, 8, 17, 26],
+        weights: List[float],
+        pixel_weight: float = 0.5,
+        feature_weight: float = 0.25,
+        style_weight: float = 0.25,
+        vgg_layers: List[int] = [3, 8, 17, 26],
     ):
         """
         Args:

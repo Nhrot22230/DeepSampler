@@ -19,9 +19,9 @@ class MultiSourceLoss(nn.Module):
         self.weights = [w / sum(weights) for w in weights]
         self.l1_loss = nn.L1Loss(reduction="mean")
 
-        if distance == "l1":
+        if distance.lower() == "l1":
             self.loss = nn.L1Loss(reduction="mean")
-        elif distance == "l2":
+        elif distance.lower() == "l2":
             self.loss = nn.MSELoss(reduction="mean")
         else:
             raise ValueError(f"Invalid distance: {distance}")
@@ -50,9 +50,9 @@ class MultiScaleLoss(nn.Module):
         self.channel_weights = [w / sum(weights) for w in weights]
         self.scales = scales
 
-        if distance == "l1":
+        if distance.lower() == "l1":
             self.loss = nn.L1Loss(reduction="mean")
-        elif distance == "l2":
+        elif distance.lower() == "l2":
             self.loss = nn.MSELoss(reduction="mean")
         else:
             raise ValueError(f"Invalid distance: {distance}")

@@ -2,19 +2,20 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
+from typing import List
 
 
 # ---------------------------------------------------------------------------
 # Weighted L1 Loss (MultiSourceL1Loss)
 # ---------------------------------------------------------------------------
 class MultiSourceLoss(nn.Module):
-    def __init__(self, weights, distance="l1"):
+    def __init__(self, weights: List[float], distance: str = "l1"):
         """
         Args:
             weights (list of float): A list of weights for each channel.
         """
         super().__init__()
-        self.weights = weights
+        self.weights = [w / sum(weights) for w in weights]
         self.l1_loss = nn.L1Loss(reduction="mean")
 
         if distance == "l1":
@@ -35,7 +36,9 @@ class MultiSourceLoss(nn.Module):
 # Weighted Multi-Scale Spectral Loss (MultiSourceMultiScaleSpectralLoss)
 # ---------------------------------------------------------------------------
 class MultiScaleLoss(nn.Module):
-    def __init__(self, weights, scales=[1, 2, 4], distance="l1"):
+    def __init__(
+        self, weights: List[float], scales: List[int] = [1, 2, 4], distance: str = "l1"
+    ):
         """
         Args:
             channel_weights (list of float): Pesos para cada canal (deben estar normalizados).
@@ -89,7 +92,7 @@ class MultiScaleLoss(nn.Module):
 # VGG Feature Extractor
 # ---------------------------------------------------------------------------
 class VGGFeatureExtractor(nn.Module):
-    def __init__(self, selected_layers=[3, 8, 17, 26]):
+    def __init__(self, selected_layers: List[int] = [3, 8, 17, 26]):
         """
         Se extraen las salidas de las capas indicadas (por índice) del VGG19.
         Por ejemplo, en este caso se extraen:
@@ -136,11 +139,11 @@ class VGGFeatureExtractor(nn.Module):
 class VGGFeatureLoss(nn.Module):
     def __init__(
         self,
-        weights,
-        pixel_weight=0.5,
-        feature_weight=0.25,
-        style_weight=0.25,
-        vgg_layers=[3, 8, 17, 26],
+        weights: List[float],
+        pixel_weight: float = 0.5,
+        feature_weight: float = 0.25,
+        style_weight: float = 0.25,
+        vgg_layers: List[int] = [3, 8, 17, 26],
     ):
         """
         Args:

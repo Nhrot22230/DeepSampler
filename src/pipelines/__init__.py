@@ -1,5 +1,5 @@
 # flake8: noqa
-from src.pipelines.data import musdb_pipeline
-from src.pipelines.eval import eval_pipeline
-from src.pipelines.inference import infer_pipeline
-from src.pipelines.train import train_pipeline
+from .data import musdb_pipeline
+from .eval import eval_pipeline
+from .inference import infer_pipeline
+from .train import train_pipeline

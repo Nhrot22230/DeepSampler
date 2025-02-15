@@ -1,5 +1,5 @@
 # flake8: noqa
-from src.utils.training.loss import (
+from .loss import (
     VGGFeatureLoss,
     MultiSourceLoss,
     MultiScaleLoss,

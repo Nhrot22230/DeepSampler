@@ -82,7 +82,7 @@ pipe-data:
 	@echo -e "$(GREEN)Ejecutando pipeline de data...$(NC)"
 	@rm -rf data/processed/*
 	@mkdir -p data/processed
-	$(PYTHON) $(PIPELINE_DATA)
+	$(PYTHON) $(PIPELINE_DATA) $(ARGS)
 	@echo -e "$(GREEN)Pipeline de data completado.$(NC)"
 
 pipe-train:

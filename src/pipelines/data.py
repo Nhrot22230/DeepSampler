@@ -1,131 +1,163 @@
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import torch
 from src.utils.audio.audio_chunk import AudioChunk
 from src.utils.audio.processing import chunk_waveform, load_audio
-from src.utils.data.dataset import MUSDB18Dataset
+from src.utils.data.dataset import MUSDBDataset
 from src.utils.logging import main_logger as logger
 from tqdm import tqdm
 
 
-def _load_and_chunk(
-    file_path: str, chunk_len: int, hop_len: int, sample_rate: int
-) -> Optional[List[torch.Tensor]]:
-    """
-    Función auxiliar que carga un archivo de audio y lo divide en chunks.
-    """
-    if not os.path.exists(file_path):
-        logger.warning(f"Archivo no encontrado: {file_path}")
-        return None
-    try:
-        audio = load_audio(file_path, sample_rate)
-        return chunk_waveform(audio, chunk_len, hop_len)
-    except Exception as e:
-        logger.error(f"Error procesando {file_path}: {e}")
-        return None
-
-
-def process_track(
-    track_folder: str,
-    chunk_seconds: int = 2,
-    overlap: float = 0,
-    sample_rate: int = 44100,
-    instruments: Optional[List[str]] = None,
+def process_audio_folder(
+    audio_folder: str,
+    sample_rate: int,
+    chunk_duration: float,
+    overlap: float,
 ) -> List[AudioChunk]:
     """
-    Procesa una pista completa cargando y segmentando los archivos de audio.
+    Processes an audio folder and returns a list of AudioChunks.
 
     Args:
-        track_folder (str): Ruta a la carpeta de la pista.
-        chunk_seconds (int, optional): Duración de cada segmento en segundos.
-        overlap (float, optional): Porcentaje de solapamiento entre segmentos.
-        sample_rate (int, optional): Frecuencia de muestreo para cargar el audio.
-        instruments (List[str], optional): Lista de nombres de instrumentos a procesar.
-            Defaults a ["bass", "drums", "vocals", "other"].
+        audio_folder: Path to the folder containing audio files.
+        sample_rate: The sample rate to use.
+        chunk_duration: Duration of each chunk in seconds.
+        overlap: Fraction of overlap between chunks.
 
     Returns:
-        List[AudioChunk]: Lista de chunks procesados, donde cada chunk es un diccionario:
-            "mixture", "bass", "drums", "vocals" y "other".
+        List[AudioChunk]: A list of AudioChunk objects.
     """
-    if instruments is None:
-        instruments = ["bass", "drums", "vocals", "other"]
+    if not os.path.isdir(audio_folder):
+        raise FileNotFoundError(f"Audio folder '{audio_folder}' does not exist.")
 
-    chunk_len = chunk_seconds * sample_rate
+    instruments: Dict[str, List[torch.Tensor]] = {
+        "mixture": [],
+        "bass": [],
+        "drums": [],
+        "other": [],
+        "vocals": [],
+    }
+
+    chunk_len = int(chunk_duration * sample_rate)
     hop_len = int(chunk_len * (1 - overlap))
 
-    mixture_path = os.path.join(track_folder, "mixture.wav")
-    mixture_chunks = _load_and_chunk(mixture_path, chunk_len, hop_len, sample_rate)
-    if mixture_chunks is None:
-        logger.error(f"No se pudo cargar la mezcla en {track_folder}")
-        return []
+    for inst in instruments:
+        audio_path = os.path.join(audio_folder, f"{inst}.wav")
+        if not os.path.isfile(audio_path):
+            raise FileNotFoundError(f"Audio file '{audio_path}' not found. Skipping.")
 
-    chunks: List[AudioChunk] = [
-        AudioChunk(mixture=chunk, bass=None, drums=None, vocals=None, other=None)
-        for chunk in mixture_chunks
+        waveform = load_audio(path=audio_path, target_sr=sample_rate, mono=True)
+        chunks = chunk_waveform(waveform=waveform, chunk_len=chunk_len, hop_len=hop_len)
+        instruments[inst].extend(chunks)
+
+    audio_chunks = [
+        AudioChunk(
+            mixture=m,
+            bass=b,
+            drums=d,
+            other=o,
+            vocals=v,
+        )
+        for m, b, d, o, v in zip(
+            instruments["mixture"],
+            instruments["bass"],
+            instruments["drums"],
+            instruments["other"],
+            instruments["vocals"],
+        )
     ]
 
-    for instrument in instruments:
-        file_path = os.path.join(track_folder, f"{instrument}.wav")
-        instrument_chunks = _load_and_chunk(file_path, chunk_len, hop_len, sample_rate)
-        if instrument_chunks is None:
-            continue
-        num_chunks = min(len(chunks), len(instrument_chunks))
-        for idx in range(num_chunks):
-            chunks[idx][instrument] = instrument_chunks[idx]
-
-    return chunks
+    return audio_chunks
 
 
 def musdb_pipeline(
     musdb_path: str,
-    window: torch.Tensor,
-    chunk_seconds: int = 2,
-    overlap: float = 0.0,
     sample_rate: int = 44100,
-    nfft: int = 2048,
+    chunk_duration: float = 2,
+    overlap: float = 0,
+    n_fft: int = 2048,
     hop_length: int = 512,
-    max_samples: Optional[int] = None,
-) -> torch.utils.data.Dataset:
+    max_chunks: Optional[int] = None,
+    save_dir: Optional[str] = None,
+) -> MUSDBDataset:
     """
-    Procesa el dataset MUSDB18HQ para entrenar un modelo de separación de fuentes.
+    Processes the MUSDB18 dataset by iterating over track folders, extracting audio chunks,
+    and optionally saving each AudioChunk to disk.
 
     Args:
-        musdb_path (str): Ruta a la carpeta con las pistas de MUSDB18HQ.
-        window (torch.Tensor): Ventana a utilizar en la STFT.
-        chunk_seconds (int, optional): Duración de cada segmento en segundos.
-        overlap (float, optional): Porcentaje de solapamiento entre segmentos.
-        sample_rate (int, optional): Frecuencia de muestreo para cargar el audio.
-        nfft (int, optional): Tamaño de la ventana para la transformada de Fourier.
-        hop_length (int, optional): Tamaño del salto para la transformada de Fourier.
+        musdb_path: Path to the MUSDB18 dataset.
+        sample_rate: Audio sample rate.
+        chunk_duration: Duration (in seconds) of each chunk.
+        overlap: Fraction of overlap between chunks.
+        n_fft: FFT window size.
+        hop_length: Hop length for STFT.
+        max_chunks: Maximum number of chunks to process.
+        save_dir: If provided, directory to save processed AudioChunks as .pt files.
 
     Returns:
-        torch.utils.data.Dataset: Dataset de PyTorch con los datos procesados.
+        MUSDBDataset: A dataset containing all processed AudioChunks or file paths.
     """
-    all_chunks = []
-    track_dirs = [
-        os.path.join(musdb_path, d)
-        for d in os.listdir(musdb_path)
-        if os.path.isdir(os.path.join(musdb_path, d))
+    if not os.path.isdir(musdb_path):
+        raise FileNotFoundError(f"MUSDB path '{musdb_path}' does not exist.")
+
+    if save_dir:
+        os.makedirs(save_dir, exist_ok=True)
+
+    all_audio_chunks = []
+    processed_chunks = 0
+
+    # Get track folder paths.
+    track_folders = [
+        os.path.join(musdb_path, folder)
+        for folder in os.listdir(musdb_path)
+        if os.path.isdir(os.path.join(musdb_path, folder))
     ]
+    logger.info(f"Found {len(track_folders)} track folders in '{musdb_path}'.")
 
-    for track_dir in tqdm(track_dirs, desc="Procesando pistas"):
-        track_chunks = process_track(
-            track_folder=track_dir,
-            chunk_seconds=chunk_seconds,
-            overlap=overlap,
-            sample_rate=sample_rate,
+    # Process each track folder.
+    for track_folder in tqdm(track_folders, desc="Processing tracks"):
+        try:
+            audio_chunks = process_audio_folder(
+                audio_folder=track_folder,
+                sample_rate=sample_rate,
+                chunk_duration=chunk_duration,
+                overlap=overlap,
+            )
+            if not audio_chunks:
+                logger.warning(f"No audio chunks found in '{track_folder}'.")
+                continue
+
+            # Limit to remaining chunks if max_chunks is set.
+            if max_chunks is not None:
+                remaining = max_chunks - processed_chunks
+                if remaining <= 0:
+                    break
+                audio_chunks = audio_chunks[:remaining]
+
+            if save_dir:
+                for idx, chunk in enumerate(audio_chunks):
+                    filename = f"{processed_chunks + idx:08d}.pt"
+                    torch.save(chunk, os.path.join(save_dir, filename))
+            else:
+                all_audio_chunks.extend(audio_chunks)
+
+            processed_chunks += len(audio_chunks)
+            if max_chunks is not None and processed_chunks >= max_chunks:
+                break
+        except Exception as e:
+            logger.error(f"Error processing '{track_folder}': {e}")
+
+    # Build dataset from saved files or in-memory chunks.
+    if save_dir:
+        data_files = sorted(
+            [
+                os.path.join(save_dir, f)
+                for f in os.listdir(save_dir)
+                if f.endswith(".pt")
+            ]
         )
-        all_chunks.extend(track_chunks)
-
-        if max_samples is not None and len(all_chunks) >= max_samples:
-            all_chunks = all_chunks[:max_samples]
-            tqdm.write(f"Se han procesado {max_samples} segmentos.")
-            break
-
-    return MUSDB18Dataset(
-        data=all_chunks,
-        window=window,
-        nfft=nfft,
-        hop_length=hop_length,
-    )
+        if max_chunks is not None:
+            data_files = data_files[:max_chunks]
+        return MUSDBDataset(data=data_files, n_fft=n_fft, hop_length=hop_length)
+    else:
+        return MUSDBDataset(data=all_audio_chunks, n_fft=n_fft, hop_length=hop_length)

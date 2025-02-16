@@ -10,14 +10,17 @@ import torchvision.models as models
 # Weighted L1 Loss (MultiSourceL1Loss)
 # ---------------------------------------------------------------------------
 class MultiSourceLoss(nn.Module):
-    def __init__(self, weights: List[float], distance: str = "l1"):
-        """
-        Args:
-            weights (list of float): A list of weights for each channel.
-        """
+    """
+    Weighted L1/L2 Loss for multi-source signals.
+
+    Args:
+        weights (List[float]): A list of weights for each channel.
+        distance (str, optional): Distance metric to use ("l1" or "l2"). Defaults to "l1".
+    """
+
+    def __init__(self, weights: List[float], distance: str = "l1") -> None:
         super().__init__()
         self.weights = [w / sum(weights) for w in weights]
-        self.l1_loss = nn.L1Loss(reduction="mean")
 
         if distance.lower() == "l1":
             self.loss = nn.L1Loss(reduction="mean")
@@ -26,7 +29,19 @@ class MultiSourceLoss(nn.Module):
         else:
             raise ValueError(f"Invalid distance: {distance}")
 
-    def forward(self, outputs, targets):
+    def forward(
+        self, outputs: List[torch.Tensor], targets: List[torch.Tensor]
+    ) -> torch.Tensor:
+        """
+        Computes the weighted loss for each channel and returns the total loss.
+
+        Args:
+            outputs (List[torch.Tensor]): List of predicted tensors.
+            targets (List[torch.Tensor]): List of ground truth tensors.
+
+        Returns:
+            torch.Tensor: The computed weighted loss.
+        """
         total_loss = 0.0
         for i, weight in enumerate(self.weights):
             total_loss += weight * self.loss(outputs[i], targets[i])

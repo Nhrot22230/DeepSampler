@@ -1,6 +1,5 @@
 from typing import Dict, List
 
-import numpy as np
 import torch
 from src.utils.audio.processing import (
     chunk_waveform,
@@ -20,7 +19,7 @@ def infer_pipeline(
     n_fft: int = 2048,
     hop_length: int = 512,
     device: torch.device = torch.device("cpu"),
-) -> Dict[str, np.ndarray]:
+) -> Dict[str, torch.Tensor]:
     """
     Pipeline de inferencia para separación de fuentes.
     Se carga un archivo mixture.wav, se lo segmenta en chunks (con o sin solapamiento),
@@ -39,7 +38,7 @@ def infer_pipeline(
         device (torch.device, optional): Dispositivo para la inferencia. Defaults a CPU.
 
     Returns:
-        Dict[str, np.ndarray]: Diccionario con las señales separadas para cada instrumento.
+        Dict[str, torch.Tensor]: Diccionario con las señales separadas para cada instrumento.
     """
     # Calcular longitud de chunk y salto (hop) en muestras.
     chunk_len = int(chunk_seconds * sample_rate)
@@ -76,10 +75,10 @@ def infer_pipeline(
             separated_chunks[inst].append(waveform_chunk)
 
     # Concatenar los chunks a lo largo del eje temporal para cada fuente.
-    separated_audio: Dict[str, np.ndarray] = {}
+    separated_audio: Dict[str, torch.Tensor] = {}
     for inst in instruments:
         # Se concatena en la dimensión del tiempo (dim=1)
-        reconstructed = torch.cat(separated_chunks[inst])
-        separated_audio[inst] = reconstructed.cpu().numpy()
+        reconstructed = torch.cat(separated_chunks[inst], dim=1)
+        separated_audio[inst] = reconstructed
 
     return separated_audio

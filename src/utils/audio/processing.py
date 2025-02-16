@@ -20,7 +20,7 @@ def load_audio(path: str, target_sr: int = 44100, mono: bool = True) -> torch.Te
         resampler = torchaudio.transforms.Resample(sr, target_sr)
         waveform = resampler(waveform)
     if mono and waveform.shape[0] > 1:
-        waveform = waveform.mean(dim=0, keepdim=True)
+        waveform = waveform.mean(dim=0)
 
     return waveform
 
@@ -28,34 +28,28 @@ def load_audio(path: str, target_sr: int = 44100, mono: bool = True) -> torch.Te
 def chunk_waveform(
     waveform: torch.Tensor, chunk_len: int, hop_len: int
 ) -> typing.List[torch.Tensor]:
-    """Chunk waveform into overlapping segments.
-
-    Args:
-        waveform: (channels, samples) tensor
-        chunk_len: Length of each chunk
-        hop_len: Hop size between chunks
-
-    Returns:
-        chunks: List of (channels, chunk_len) tensors
     """
-    chunks = []
-    for i in range(0, waveform.shape[-1] - chunk_len + 1, hop_len):
-        chunk = waveform[..., i : i + chunk_len]
-        if chunk.shape[-1] < chunk_len:
-            chunk = torch.cat(
-                [chunk, torch.zeros_like(chunk[..., : chunk_len - chunk.shape[-1]])],
-                dim=-1,
-            )
-        chunks.append(chunk)
+    Divide un waveform en segmentos (chunks) solapados utilizando torch.unfold.
+    Args:
+        waveform (torch.Tensor): Tensor que contiene el waveform.
+        chunk_len (int): Longitud de cada chunk.
+        hop_len (int): Paso (hop) entre el inicio de cada chunk.
+    Returns:
+        List[torch.Tensor]: Lista de chunks. En el caso de waveform 1D, cada chunk es 1D;
+                            para 2D, cada chunk es un tensor de forma (channels, chunk_len).
+    """
+    if waveform.dim() == 1:
+        chunks = waveform.unfold(dimension=0, size=chunk_len, step=hop_len)
+    else:
+        raise ValueError("waveform debe ser 1D o 2D.")
 
-    return chunks
+    return [chunk.clone() for chunk in chunks]
 
 
 def log_spectrogram(
     waveform: torch.Tensor,
     n_fft: int = 2048,
     hop_length: int = 512,
-    window: typing.Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """Compute log magnitude spectrogram.
 
@@ -68,14 +62,11 @@ def log_spectrogram(
     Returns:
         spectrogram: (..., freq, time) tensor
     """
-    if window is None:
-        window = torch.hann_window(n_fft, device=waveform.device)
-
     stft = torch.stft(
         waveform,
         n_fft=n_fft,
         hop_length=hop_length,
-        window=window,
+        window=torch.hann_window(n_fft, device=waveform.device),
         return_complex=True,
     )
 
@@ -142,14 +133,9 @@ def inverse_log_spectrogram(
     magnitude = torch.expm1(spectrogram)
 
     # Reconstruct a complex spectrogram with zero phase.
-    # Esto crea un tensor complejo donde la parte imaginaria es cero.
     complex_spec = torch.complex(magnitude, torch.zeros_like(magnitude))
-
-    # Calcular la longitud estimada del waveform.
-    # Se asume que el número de frames es spectrogram.shape[-1].
     length = spectrogram.shape[-1] * hop_length
 
-    # Aplicar la ISTFT.
     waveform = torch.istft(
         complex_spec, n_fft=n_fft, hop_length=hop_length, window=window, length=length
     )

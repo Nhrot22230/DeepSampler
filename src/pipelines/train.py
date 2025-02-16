@@ -9,18 +9,18 @@ from tqdm import tqdm
 
 def train_pipeline(
     model: torch.nn.Module,
+    epochs: int,
+    phase1_epochs: int,
     dataloader: torch.utils.data.DataLoader,
     criterion: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
-    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
     device: torch.device = torch.device("cpu"),
-    total_epochs: int = 40,
-    phase1_epochs: int = 20,
+    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
 ):
     history = {"epoch_loss": [], "learning_rate": [], "batch_losses": []}
     start_time = time.time()
 
-    for epoch in range(1, total_epochs + 1):
+    for epoch in range(1, epochs + 1):
         model.train()
         epoch_loss = 0.0
         epoch_start = time.time()
@@ -31,7 +31,7 @@ def train_pipeline(
 
         batch_iter = tqdm(
             dataloader,
-            desc=f"Epoch {epoch}/{total_epochs}",
+            desc=f"Epoch {epoch}/{epochs}",
             leave=False,
             unit="batch",
             dynamic_ncols=True,
@@ -72,10 +72,10 @@ def train_pipeline(
             scheduler.step()
 
         epoch_time = time.time() - epoch_start
-        remaining_time = (time.time() - start_time) / epoch * (total_epochs - epoch)
+        remaining_time = (time.time() - start_time) / epoch * (epochs - epoch)
 
         print(
-            f"Epoch {epoch}/{total_epochs} - "
+            f"Epoch {epoch}/{epochs} - "
             f"Avg Loss: {epoch_loss / len(dataloader):.4f} - "
             f"LR: {optimizer.param_groups[0]['lr']:.1e} - "
             f"Time: {epoch_time:.2f}s - "
@@ -128,7 +128,7 @@ if __name__ == "__main__":
         criterion=criterion,
         optimizer=optimizer,
         scheduler=scheduler,
-        total_epochs=total_epochs,
+        epochs=total_epochs,
         phase1_epochs=phase1_epochs,
     )
 

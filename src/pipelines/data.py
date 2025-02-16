@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 
 import torch
 from src.utils.audio.audio_chunk import AudioChunk

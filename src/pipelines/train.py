@@ -10,7 +10,6 @@ from tqdm import tqdm
 def train_pipeline(
     model: torch.nn.Module,
     epochs: int,
-    phase1_epochs: int,
     dataloader: torch.utils.data.DataLoader,
     criterion: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
@@ -25,9 +24,6 @@ def train_pipeline(
         epoch_loss = 0.0
         epoch_start = time.time()
         batch_losses = []
-
-        if epoch == phase1_epochs + 1:
-            print("\nStarting second training phase (lr=1e-4)")
 
         batch_iter = tqdm(
             dataloader,

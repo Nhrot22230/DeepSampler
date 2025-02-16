@@ -116,36 +116,33 @@ def musdb_pipeline(
 
     # Process each track folder.
     for track_folder in tqdm(track_folders, desc="Processing tracks"):
-        try:
-            audio_chunks = process_audio_folder(
-                audio_folder=track_folder,
-                sample_rate=sample_rate,
-                chunk_duration=chunk_duration,
-                overlap=overlap,
-            )
-            if not audio_chunks:
-                logger.warning(f"No audio chunks found in '{track_folder}'.")
-                continue
+        audio_chunks = process_audio_folder(
+            audio_folder=track_folder,
+            sample_rate=sample_rate,
+            chunk_duration=chunk_duration,
+            overlap=overlap,
+        )
+        if not audio_chunks:
+            logger.warning(f"No audio chunks found in '{track_folder}'.")
+            raise ValueError("No audio chunks found.")
 
-            # Limit to remaining chunks if max_chunks is set.
-            if max_chunks is not None:
-                remaining = max_chunks - processed_chunks
-                if remaining <= 0:
-                    break
-                audio_chunks = audio_chunks[:remaining]
-
-            if save_dir:
-                for idx, chunk in enumerate(audio_chunks):
-                    filename = f"{processed_chunks + idx:08d}.pt"
-                    torch.save(chunk, os.path.join(save_dir, filename))
-            else:
-                all_audio_chunks.extend(audio_chunks)
-
-            processed_chunks += len(audio_chunks)
-            if max_chunks is not None and processed_chunks >= max_chunks:
+        # Limit to remaining chunks if max_chunks is set.
+        if max_chunks is not None:
+            remaining = max_chunks - processed_chunks
+            if remaining <= 0:
                 break
-        except Exception as e:
-            logger.error(f"Error processing '{track_folder}': {e}")
+            audio_chunks = audio_chunks[:remaining]
+
+        if save_dir:
+            for idx, chunk in enumerate(audio_chunks):
+                filename = f"{processed_chunks + idx:08d}.pt"
+                torch.save(chunk, os.path.join(save_dir, filename))
+        else:
+            all_audio_chunks.extend(audio_chunks)
+
+        processed_chunks += len(audio_chunks)
+        if max_chunks is not None and processed_chunks >= max_chunks:
+            break
 
     # Build dataset from saved files or in-memory chunks.
     if save_dir:

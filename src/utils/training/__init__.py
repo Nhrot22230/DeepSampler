@@ -2,5 +2,4 @@
 from .loss import (
     MultiScaleLoss,
     MultiSourceLoss,
-    VGGFeatureLoss,
 )

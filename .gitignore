@@ -175,3 +175,6 @@ cython_debug/
 data/*
 
 experiments/*
+
+converted_tracks/
+temp_tracks/

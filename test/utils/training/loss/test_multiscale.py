@@ -1,7 +1,11 @@
 import torch
 import pytest
 from src.utils.training.loss import MultiScaleLoss
-from test.utils import generate_unbatched_tensors, generate_batched_tensors, NUM_SOURCES
+from test.utils_test import (
+    generate_unbatched_tensors,
+    generate_batched_tensors,
+    NUM_SOURCES,
+)
 
 
 def test_unbatched_input_processing():

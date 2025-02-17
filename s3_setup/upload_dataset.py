@@ -1,5 +1,6 @@
-import boto3
 import os
+
+import boto3
 
 # Inicializamos el cliente S3
 s3 = boto3.client("s3")

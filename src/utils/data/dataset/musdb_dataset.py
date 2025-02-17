@@ -1,6 +1,6 @@
+import copy
 from typing import List, Union
 
-import copy
 import torch
 from src.utils.audio.audio_chunk import AudioChunk
 from src.utils.audio.processing import log_spectrogram

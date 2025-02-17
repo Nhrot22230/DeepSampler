@@ -29,7 +29,7 @@ PIPELINE_DATA     := $(SRC_DIR)/pipelines/data.py
 PIPELINE_TRAIN    := $(SRC_DIR)/pipelines/train.py
 PIPELINE_INFER    := $(SRC_DIR)/pipelines/inference.py
 PIPELINE_EVAL     := $(SRC_DIR)/pipelines/eval.py
-TESTS_DIR         := tests
+TESTS_DIR         := test
 REQUIREMENTS_FILE := requirements.txt
 
 export PYTHONPATH := $(CURDIR)
@@ -105,7 +105,7 @@ pipe-infer:
 # -------------------------------------------------------------------------------
 test:
 	@echo -e "$(GREEN)Ejecutando tests...$(NC)"
-	$(PYTHON) -m unittest discover $(TESTS_DIR)
+	pytest $(TESTS_DIR)
 	@echo -e "$(GREEN)Tests completados.$(NC)"
 
 format:

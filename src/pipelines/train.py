@@ -1,8 +1,67 @@
 import time
-from typing import Optional
+from typing import Dict, Optional, Tuple
 
 import torch
 from tqdm import tqdm
+
+
+def train_one_epoch(
+    model: torch.nn.Module,
+    dataloader: torch.utils.data.DataLoader,
+    criterion: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    device: torch.device,
+) -> Tuple[float, float]:
+    """Train the model for one epoch.
+
+    Args:
+        model: The neural network model
+        dataloader: Training data loader
+        criterion: Loss function module
+        optimizer: Optimization algorithm
+        device: Computation device (CPU/GPU)
+        scheduler: Learning rate scheduler
+
+    Returns:
+        Tuple containing average epoch loss and current learning rate
+    """
+    model.train()
+    total_loss = 0.0
+    current_lr = optimizer.param_groups[0]["lr"]
+
+    with tqdm(dataloader, unit="batch", leave=False) as batch_iter:
+        for inputs, targets in batch_iter:
+            # Move data to device
+            inputs = inputs.to(device)
+            targets = targets.to(device)
+
+            # Forward pass
+            optimizer.zero_grad()
+            outputs = model(inputs)
+
+            # Loss calculation with shape validation
+            try:
+                loss = criterion(outputs, targets)
+            except RuntimeError as e:
+                raise RuntimeError(
+                    f"Loss calculation failed: {e}\n"
+                    f"Shapes - Input: {inputs.shape},"
+                    f"Target: {targets.shape}, Output: {outputs.shape}"
+                ) from e
+
+            # Backward pass and optimization
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+
+            # Update tracking
+            total_loss += loss.item()
+            batch_iter.set_postfix(
+                {"loss": f"{loss.item():.4f}", "lr": f"{current_lr:.1e}"}
+            )
+
+    avg_loss = total_loss / len(dataloader)
+    return avg_loss, current_lr
 
 
 def train_pipeline(
@@ -13,71 +72,55 @@ def train_pipeline(
     optimizer: torch.optim.Optimizer,
     device: torch.device = torch.device("cpu"),
     scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
-):
-    history = {"epoch_loss": [], "learning_rate": [], "batch_losses": []}
+) -> Dict[str, list]:
+    """Main training pipeline.
+
+    Args:
+        model: The neural network model
+        epochs: Number of training epochs
+        dataloader: Training data loader
+        criterion: Loss function module
+        optimizer: Optimization algorithm
+        device: Computation device (CPU/GPU)
+        scheduler: Learning rate scheduler
+
+    Returns:
+        Training history dictionary
+    """
+    history = {"epoch_loss": [], "learning_rate": [], "training_time": []}
+
     start_time = time.time()
 
     for epoch in range(1, epochs + 1):
-        model.train()
-        epoch_loss = 0.0
         epoch_start = time.time()
-        batch_losses = []
 
-        batch_iter = tqdm(
-            dataloader,
-            desc=f"Epoch {epoch}/{epochs}",
-            leave=False,
-            unit="batch",
-            dynamic_ncols=True,
+        # Train for one epoch
+        avg_loss, current_lr = train_one_epoch(
+            model=model,
+            dataloader=dataloader,
+            criterion=criterion,
+            optimizer=optimizer,
+            device=device,
         )
 
-        for batch_idx, (inputs, targets) in enumerate(batch_iter, 1):
-            inputs, targets = inputs.to(device), targets.to(device)
-
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            try:
-                loss = criterion(outputs, targets)
-                loss.backward()
-            except Exception as e:
-                print(f"Error: {e}")
-                print(f"Batch index: {batch_idx}")
-                print(f"Inputs shape: {inputs.shape}")
-                print(f"Targets shape: {targets.shape}")
-                print(f"Outputs shape: {outputs.shape}")
-                raise e
-
-            optimizer.step()
-            batch_loss = loss.item()
-            epoch_loss += batch_loss
-            batch_losses.append(batch_loss)
-            avg_loss = epoch_loss / batch_idx
-
-            batch_iter.set_postfix(
-                {
-                    "lr": f"{optimizer.param_groups[0]['lr']:.1e}",
-                    "batch_loss": f"{batch_loss:.4f}",
-                    "avg_loss": f"{avg_loss:.4f}",
-                }
-            )
-
-        if scheduler is not None:
+        # Update scheduler if provided
+        if scheduler:
             scheduler.step()
 
+        # Record metrics
         epoch_time = time.time() - epoch_start
-        remaining_time = (time.time() - start_time) / epoch * (epochs - epoch)
+        history["epoch_loss"].append(avg_loss)
+        history["learning_rate"].append(current_lr)
+        history["training_time"].append(epoch_time)
 
-        tqdm.write(
-            f"Epoch {epoch}/{epochs} - "
-            f"Avg Loss: {epoch_loss / len(dataloader):.4f} - "
-            f"LR: {optimizer.param_groups[0]['lr']:.1e} - "
-            f"Time: {epoch_time:.2f}s - "
-            f"ETA: {remaining_time:.2f}s"
+        # Print epoch summary
+        print(
+            f"Epoch {epoch}/{epochs} | "
+            f"Loss: {avg_loss:.4f} | "
+            f"LR: {current_lr:.1e} | "
+            f"Time: {epoch_time:.1f}s"
         )
 
-        history["epoch_loss"].append(epoch_loss / len(dataloader))
-        history["learning_rate"].append(optimizer.param_groups[0]["lr"])
-        history["batch_losses"].extend(batch_losses)
-
-    print("\nTraining complete. Total time:", time.time() - start_time, "seconds.")
+    total_time = time.time() - start_time
+    print(f"\nTraining completed in {total_time:.1f} seconds")
     return history

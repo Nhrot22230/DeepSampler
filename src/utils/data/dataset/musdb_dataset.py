@@ -1,5 +1,6 @@
 from typing import List, Union
 
+import copy
 import torch
 from src.utils.audio.audio_chunk import AudioChunk
 from src.utils.audio.processing import log_spectrogram
@@ -32,9 +33,11 @@ class MUSDBDataset(Dataset):
 
     def __getitem__(self, index: int):
         item = self.data[index]
+
         audio_chunk: AudioChunk = (
-            AudioChunk.from_file(item) if isinstance(item, str) else item
+            AudioChunk.from_file(item) if isinstance(item, str) else copy.deepcopy(item)
         )
+
         target_keys = ["mixture", "vocals", "drums", "bass", "other"]
         for key in target_keys:
             audio_chunk[key] = log_spectrogram(
@@ -42,9 +45,8 @@ class MUSDBDataset(Dataset):
                 n_fft=self.n_fft,
                 hop_length=self.hop_length,
             )
-        # Ensure that the mixture spectrogram has a channel dimension (unsqueezed).
+
         input_spec = audio_chunk["mixture"].unsqueeze(0)
-        # Stack the target spectrograms for vocals, drums, bass, and other.
         target_spec = torch.stack(
             [audio_chunk[key] for key in target_keys if key != "mixture"]
         )

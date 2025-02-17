@@ -1,9 +1,10 @@
 from typing import List, Union
 
 import torch
+from torch.utils.data import Dataset
+
 from src.utils.audio.audio_chunk import AudioChunk
 from src.utils.audio.processing import log_spectrogram
-from torch.utils.data import Dataset
 
 
 class MUSDBDataset(Dataset):

@@ -1,14 +1,18 @@
 import os
 import sys
+
 import librosa
-import numpy as np
-import moviepy.editor as mp
-import soundfile as sf
 import matplotlib.pyplot as plt
-from PyQt6.QtWidgets import QWidget, QMainWindow, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFileDialog
-from PyQt6.QtGui import QPixmap, QIcon
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+import moviepy.editor as mp
+import numpy as np
+import soundfile as sf
+from matplotlib.backends.backend_qt5agg import \
+    FigureCanvasQTAgg as FigureCanvas
+from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtWidgets import (QFileDialog, QHBoxLayout, QLabel, QMainWindow,
+                             QPushButton, QVBoxLayout, QWidget)
 from widgets.toolbar import Toolbar
+
 
 class SecondWindow(QMainWindow):
     def __init__(self, file_path, main_window, selected_model):
@@ -23,7 +27,6 @@ class SecondWindow(QMainWindow):
         scriptDir = os.path.dirname(os.path.realpath(__file__))
         logo_path = os.path.join(scriptDir, "assets", "dinosampler_logo.png")
         self.setWindowIcon(QIcon(logo_path))
-
 
     def process_audio(self):
         script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -95,9 +98,10 @@ class SecondWindow(QMainWindow):
             self.waveform_canvases.append(canvas)
             self.download_buttons.append(download_btn)
 
-
     def plot_waveform(self):
-        y, sr = librosa.load(self.file_path, sr=44100)  # Carga el audio sin modificar SR
+        y, sr = librosa.load(
+            self.file_path, sr=44100
+        )  # Carga el audio sin modificar SR
         time = np.linspace(0, len(y) / sr, len(y))  # Eje de tiempo
         duration = len(y) / sr  # Duración en segundos
 
@@ -126,7 +130,9 @@ class SecondWindow(QMainWindow):
         output_dir = os.path.join(os.path.dirname(__file__), "temp_tracks")
         os.makedirs(output_dir, exist_ok=True)
 
-        for i, (canvas, label, btn) in enumerate(zip(self.waveform_canvases, self.track_labels, self.download_buttons)):
+        for i, (canvas, label, btn) in enumerate(
+            zip(self.waveform_canvases, self.track_labels, self.download_buttons)
+        ):
             ax = canvas.figure.add_subplot(111)
             ax.clear()
             ax.set_facecolor("black")
@@ -146,9 +152,15 @@ class SecondWindow(QMainWindow):
 
     def download_file(self, label):
         if label in self.separated_files:
-            save_path, _ = QFileDialog.getSaveFileName(self, "Save File", self.separated_files[label], "Audio Files (*.wav)")
+            save_path, _ = QFileDialog.getSaveFileName(
+                self, "Save File", self.separated_files[label], "Audio Files (*.wav)"
+            )
             if save_path:
-                sf.write(save_path, librosa.load(self.separated_files[label], sr=None)[0], librosa.load(self.separated_files[label], sr=None)[1])
+                sf.write(
+                    save_path,
+                    librosa.load(self.separated_files[label], sr=None)[0],
+                    librosa.load(self.separated_files[label], sr=None)[1],
+                )
 
     def new_instance(self):
         if self.main_window:

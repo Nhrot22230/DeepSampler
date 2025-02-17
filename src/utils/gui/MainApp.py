@@ -1,9 +1,11 @@
 import os
-from PyQt6.QtWidgets import QMainWindow, QFileDialog, QVBoxLayout, QWidget
+
 from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QFileDialog, QMainWindow, QVBoxLayout, QWidget
 from SecondWindow import SecondWindow
 from widgets.drag_and_drop import DragDropWidget
 from widgets.toolbar import Toolbar
+
 
 class MainApp(QMainWindow):
     def __init__(self):
@@ -26,7 +28,7 @@ class MainApp(QMainWindow):
         self.dragDropWidget = DragDropWidget(self)
         layout.addWidget(self.dragDropWidget)
 
-        self.toolbar.change_style('Fusion')
+        self.toolbar.change_style("Fusion")
 
     def new_instance(self):
         global new_app
@@ -34,7 +36,9 @@ class MainApp(QMainWindow):
         new_app.show()
 
     def open_file(self):
-        file, _ = QFileDialog.getOpenFileName(self, "Select File", filter="Audio Files (*.wav *.mp4)")
+        file, _ = QFileDialog.getOpenFileName(
+            self, "Select File", filter="Audio Files (*.wav *.mp4)"
+        )
         if file:
             self.go_second_window(file)
 

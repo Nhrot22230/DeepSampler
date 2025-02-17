@@ -1,5 +1,2 @@
 # flake8: noqa
-from .loss import (
-    MultiScaleLoss,
-    MultiSourceLoss,
-)
+from .loss import MultiScaleLoss, MultiSourceLoss

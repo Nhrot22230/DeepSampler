@@ -1,6 +1,7 @@
-from PyQt6.QtWidgets import QApplication, QToolBar, QMenu, QToolButton, QStyleFactory
-from PyQt6.QtGui import QAction, QActionGroup
 from PyQt6.QtCore import QObject
+from PyQt6.QtGui import QAction, QActionGroup
+from PyQt6.QtWidgets import (QApplication, QMenu, QStyleFactory, QToolBar,
+                             QToolButton)
 
 
 class Toolbar(QObject):
@@ -37,7 +38,9 @@ class Toolbar(QObject):
             theme_menu.addAction(action)
 
         # checkbox de theme
-        self.use_palette_action = QAction("Use Theme's Standard Palette", self.parent, checkable=True)
+        self.use_palette_action = QAction(
+            "Use Theme's Standard Palette", self.parent, checkable=True
+        )
         self.use_palette_action.setChecked(True)
         self.use_palette_action.triggered.connect(self.change_palette)
         theme_menu.addAction(self.use_palette_action)
@@ -60,13 +63,15 @@ class Toolbar(QObject):
         models = {
             "UNet": self.select_unet,
             "SCUNet": self.select_scunet,
-            "DinoSampler": self.select_dino_sampler
+            "DinoSampler": self.select_dino_sampler,
         }
 
         for model_name, callback in models.items():
             action = QAction(model_name, self.parent)
             action.setCheckable(True)
-            action.triggered.connect(lambda checked, name=model_name: self.select_model(name))
+            action.triggered.connect(
+                lambda checked, name=model_name: self.select_model(name)
+            )
             self.modelGroup.addAction(action)
             model_menu.addAction(action)
             if self.selected_model == model_name:
@@ -99,7 +104,7 @@ class Toolbar(QObject):
         QApplication.setStyle(styleName)
 
     def change_palette(self):
-        if (self.use_palette_action.isChecked()):
+        if self.use_palette_action.isChecked():
             QApplication.setPalette(QApplication.style().standardPalette())
         else:
             QApplication.setPalette(self.originalPalette)

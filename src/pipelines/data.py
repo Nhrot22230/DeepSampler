@@ -2,11 +2,12 @@ import os
 from typing import Dict, List, Optional
 
 import torch
+from tqdm import tqdm
+
 from src.utils.audio.audio_chunk import AudioChunk
 from src.utils.audio.processing import chunk_waveform, load_audio
 from src.utils.data.dataset import MUSDBDataset
 from src.utils.logging import main_logger as logger
-from tqdm import tqdm
 
 
 def process_audio_folder(
@@ -156,5 +157,77 @@ def musdb_pipeline(
         if max_chunks is not None:
             data_files = data_files[:max_chunks]
         return MUSDBDataset(data=data_files, n_fft=n_fft, hop_length=hop_length)
-    else:
-        return MUSDBDataset(data=all_audio_chunks, n_fft=n_fft, hop_length=hop_length)
+
+    return MUSDBDataset(data=all_audio_chunks, n_fft=n_fft, hop_length=hop_length)
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Process MUSDB18 dataset.")
+
+    parser.add_argument(
+        "--musdb_path",
+        type=str,
+        required=True,
+        help="Path to the MUSDB18 dataset.",
+    )
+    parser.add_argument(
+        "--save_dir",
+        type=str,
+        required=True,
+        help="Directory to save processed chunks.",
+    )
+    parser.add_argument(
+        "--sample_rate",
+        type=int,
+        default=44100,
+        help="Sample rate for audio processing.",
+    )
+    parser.add_argument(
+        "--chunk_duration",
+        type=float,
+        default=2,
+        help="Duration of each audio chunk in seconds.",
+    )
+    parser.add_argument(
+        "--overlap",
+        type=float,
+        default=0,
+        help="Overlap between consecutive chunks.",
+    )
+    parser.add_argument(
+        "--n_fft",
+        type=int,
+        default=2048,
+        help="Number of FFT points.",
+    )
+    parser.add_argument(
+        "--hop_length",
+        type=int,
+        default=512,
+        help="Number of samples between successive FFT columns.",
+    )
+    parser.add_argument(
+        "--max_chunks",
+        type=int,
+        default=100,
+        help="Maximum number of chunks to process.",
+    )
+
+    args = parser.parse_args()
+
+    dataset = musdb_pipeline(
+        musdb_path=args.musdb_path,
+        sample_rate=args.sample_rate,
+        chunk_duration=args.chunk_duration,
+        overlap=args.overlap,
+        n_fft=args.n_fft,
+        hop_length=args.hop_length,
+        max_chunks=args.max_chunks,
+        save_dir=args.save_dir,
+    )
+
+    logger.info(f"Processed {len(dataset)} audio chunks.")
+    logger.info(f"Saved processed chunks to '{args.save_dir}'.")
+    logger.info(f"Dataset: {dataset}")

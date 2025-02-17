@@ -1,13 +1,16 @@
-from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
+
 
 class DragDropWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptDrops(True)
         self.setMinimumSize(300, 100)
-        self.setStyleSheet("border: 2px dashed gray; border-radius: 10px; padding: 20px;")
+        self.setStyleSheet(
+            "border: 2px dashed gray; border-radius: 10px; padding: 20px;"
+        )
 
         self.label = QLabel("Drag and drop a file here", self)
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -19,7 +22,9 @@ class DragDropWidget(QWidget):
     def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():
             urls = event.mimeData().urls()
-            if any(url.toLocalFile().lower().endswith((".wav", ".mp4")) for url in urls):
+            if any(
+                url.toLocalFile().lower().endswith((".wav", ".mp4")) for url in urls
+            ):
                 event.acceptProposedAction()
             else:
                 self.label.setText("Invalid file type, only .wav and .mp4")

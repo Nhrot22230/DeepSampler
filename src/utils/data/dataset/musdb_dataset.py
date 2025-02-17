@@ -3,7 +3,7 @@ from typing import List, Union
 
 import torch
 from src.utils.audio.audio_chunk import AudioChunk
-from src.utils.audio.processing import log_spectrogram
+from src.utils.audio.processing import mag_stft
 from torch.utils.data import Dataset
 
 
@@ -40,7 +40,7 @@ class MUSDBDataset(Dataset):
 
         target_keys = ["mixture", "vocals", "drums", "bass", "other"]
         for key in target_keys:
-            audio_chunk[key] = log_spectrogram(
+            audio_chunk[key] = mag_stft(
                 audio_chunk[key],
                 n_fft=self.n_fft,
                 hop_length=self.hop_length,

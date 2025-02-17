@@ -3,9 +3,9 @@ from typing import Dict, List, Union
 import torch
 from src.utils.audio.processing import (
     chunk_waveform,
-    inverse_log_spectrogram,
+    i_mag_stft,
     load_audio,
-    log_spectrogram,
+    mag_stft,
 )
 from tqdm import tqdm
 
@@ -58,7 +58,7 @@ def infer_pipeline(
     if progress:
         for chunk in tqdm(mixture_chunks, desc="Separating audio"):
             chunk = chunk.to(device)
-            spec = log_spectrogram(chunk, n_fft, hop_length)
+            spec = mag_stft(chunk, n_fft, hop_length)
             spec = spec.to(device)
             spec = spec.unsqueeze(0).unsqueeze(0)
             with torch.no_grad():
@@ -67,13 +67,13 @@ def infer_pipeline(
                 # Remove the batch dimension: now shape [C, F, T]
                 pred = pred.squeeze(0)
             for i, inst in enumerate(instruments):
-                wav_chunk = inverse_log_spectrogram(pred[i], n_fft, hop_length)
+                wav_chunk = i_mag_stft(pred[i], n_fft, hop_length)
                 separated_chunks[inst].append(wav_chunk)
 
     else:
         for chunk in mixture_chunks:
             chunk = chunk.to(device)
-            spec = log_spectrogram(chunk, n_fft, hop_length)
+            spec = mag_stft(chunk, n_fft, hop_length)
             spec = spec.to(device)
             spec = spec.unsqueeze(0).unsqueeze(0)
             with torch.no_grad():
@@ -82,7 +82,7 @@ def infer_pipeline(
                 # Remove the batch dimension: now shape [C, F, T]
                 pred = pred.squeeze(0)
             for i, inst in enumerate(instruments):
-                wav_chunk = inverse_log_spectrogram(pred[i], n_fft, hop_length)
+                wav_chunk = i_mag_stft(pred[i], n_fft, hop_length)
                 separated_chunks[inst].append(wav_chunk)
 
     separated_audio: Dict[str, torch.Tensor] = {}

@@ -46,94 +46,49 @@ def chunk_waveform(
     return [chunk.clone() for chunk in chunks]
 
 
-def log_spectrogram(
+def mag_stft(
     waveform: torch.Tensor,
     n_fft: int = 2048,
     hop_length: int = 512,
 ) -> torch.Tensor:
     """Compute log magnitude spectrogram.
-
     Args:
         waveform: (channels, samples) tensor
         n_fft: FFT size
         hop_length: Hop size between frames
-        window: Window function
-
     Returns:
         spectrogram: (..., freq, time) tensor
     """
+    window = torch.hann_window(n_fft, device=waveform.device)
     stft = torch.stft(
         waveform,
         n_fft=n_fft,
         hop_length=hop_length,
-        window=torch.hann_window(n_fft, device=waveform.device),
+        window=window,
         return_complex=True,
     )
 
-    return torch.log1p(torch.abs(stft))
+    return torch.abs(stft)
 
 
-def mel_spectrogram(
-    waveform: torch.Tensor,
-    sample_rate: int = 44100,
-    n_fft: int = 2048,
-    hop_length: int = 512,
-    n_mels: int = 128,
-    f_min: float = 0.0,
-    f_max: typing.Optional[float] = None,
-) -> torch.Tensor:
-    """Compute mel spectrogram.
-
-    Args:
-        waveform: (channels, samples) tensor
-        sample_rate: Sample rate of audio
-        n_fft: FFT size
-        hop_length: Hop size between frames
-        n_mels: Number of mel bins
-        f_min: Minimum frequency
-        f_max: Maximum frequency
-
-    Returns:
-        spectrogram: (..., freq, time) tensor
-    """
-    mel_transform = torchaudio.transforms.MelSpectrogram(
-        sample_rate=sample_rate,
-        n_fft=n_fft,
-        hop_length=hop_length,
-        n_mels=n_mels,
-        f_min=f_min,
-        f_max=f_max,
-    )
-
-    return mel_transform(waveform)
-
-
-def inverse_log_spectrogram(
+def i_mag_stft(
     spectrogram: torch.Tensor,
     n_fft: int = 2048,
     hop_length: int = 512,
-    window: typing.Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
     Compute the inverse of a log-magnitude spectrogram.
-
     Args:
         spectrogram: (..., freq, time) tensor containing log-magnitude values.
         n_fft: FFT size.
         hop_length: Hop size between frames.
-        window: Window function; if None, a Hann window is used.
-
     Returns:
         waveform: Reconstructed waveform (channels, samples) tensor.
     """
-    if window is None:
-        window = torch.hann_window(n_fft, device=spectrogram.device)
-
-    # Invert the log transform: log(1 + x) --> x = expm1(log_value)
-    magnitude = torch.expm1(spectrogram)
+    window = torch.hann_window(n_fft, device=spectrogram.device)
 
     # Reconstruct a complex spectrogram with zero phase.
-    complex_spec = torch.complex(magnitude, torch.zeros_like(magnitude))
+    complex_spec = torch.complex(spectrogram, torch.zeros_like(spectrogram))
     length = spectrogram.shape[-1] * hop_length
 
     waveform = torch.istft(

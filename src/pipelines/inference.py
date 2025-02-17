@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import torch
 from src.utils.audio.processing import (
@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 def infer_pipeline(
     model: torch.nn.Module,
-    mixture_path: str,
+    mixture: Union[str, torch.Tensor],
     sample_rate: int = 44100,
     chunk_seconds: float = 2,
     overlap: float = 0,
@@ -43,7 +43,11 @@ def infer_pipeline(
     """
     chunk_len = int(chunk_seconds * sample_rate)
     chunk_hop = int(chunk_len * (1 - overlap))
-    mixture_waveform = load_audio(mixture_path, sample_rate)
+
+    if isinstance(mixture, str):
+        mixture_waveform = load_audio(mixture, sample_rate)
+    else:
+        mixture_waveform = mixture
     mixture_chunks = chunk_waveform(mixture_waveform, chunk_len, chunk_hop)
     instruments = ["vocals", "drums", "bass", "other"]
     separated_chunks: Dict[str, List[torch.Tensor]] = {inst: [] for inst in instruments}

@@ -5,16 +5,19 @@ import numpy as np
 import moviepy.editor as mp
 import soundfile as sf
 import matplotlib.pyplot as plt
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFileDialog
+from PyQt6.QtWidgets import QWidget, QMainWindow, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFileDialog
 from PyQt6.QtGui import QPixmap, QIcon
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from widgets.toolbar import Toolbar
 
-class SecondWindow(QWidget):
-    def __init__(self, file_path):
+class SecondWindow(QMainWindow):
+    def __init__(self, file_path, main_window, selected_model):
         super().__init__()
+        self.main_window = main_window
         self.file_path = file_path
         self.separated_files = {}
         self.process_audio()
+        self.selected_model = selected_model
         self.initUI()
         self.setWindowTitle("DinoSampler")
         scriptDir = os.path.dirname(os.path.realpath(__file__))
@@ -40,18 +43,25 @@ class SecondWindow(QWidget):
             self.file_path = wav_path
 
     def initUI(self):
-        self.setWindowTitle("Audio Waveform")
-        layout = QVBoxLayout()
+        self.toolbar = Toolbar(self, self.selected_model)
+        self.toolbar.create_toolbar()
+        centralWidget = QWidget()
+        self.setCentralWidget(centralWidget)
+
+        layout = QVBoxLayout(centralWidget)
         infoLayout = QHBoxLayout()
+
         self.label = QLabel(f"Audio File: {self.file_path}")
         self.duration_label = QLabel()
         infoLayout.addWidget(self.label)
         infoLayout.addStretch()
         infoLayout.addWidget(self.duration_label)
         layout.addLayout(infoLayout)
+
         self.canvas = FigureCanvas(plt.figure(figsize=(6, 1)))
         layout.addWidget(self.canvas)
         self.plot_waveform()
+
         separateBtn = QPushButton("Separate")
         separateBtn.clicked.connect(self.separate)
         layout.addWidget(separateBtn)
@@ -85,21 +95,16 @@ class SecondWindow(QWidget):
             self.waveform_canvases.append(canvas)
             self.download_buttons.append(download_btn)
 
-        self.setLayout(layout)
-
-
 
     def plot_waveform(self):
         y, sr = librosa.load(self.file_path, sr=44100)  # Carga el audio sin modificar SR
         time = np.linspace(0, len(y) / sr, len(y))  # Eje de tiempo
         duration = len(y) / sr  # Duración en segundos
 
-        # Formatear duración en minutos:segundos
         minutes = int(duration // 60)
         seconds = int(duration % 60)
         formatted_duration = f"{minutes}:{seconds:02d}"
 
-        # Actualizar QLabel (si usas QLabel)
         self.duration_label.setText(f"Duration: {formatted_duration}")
 
         self.canvas.figure.set_facecolor("black")
@@ -137,12 +142,18 @@ class SecondWindow(QWidget):
             sf.write(output_filename, y, sr)  # Guardar el audio en un archivo
             self.separated_files[label] = output_filename  # Guardar en el diccionario
 
-            # Habilitar botón de descarga
             btn.setEnabled(True)
 
     def download_file(self, label):
-        """Permite al usuario descargar el archivo generado."""
         if label in self.separated_files:
             save_path, _ = QFileDialog.getSaveFileName(self, "Save File", self.separated_files[label], "Audio Files (*.wav)")
             if save_path:
                 sf.write(save_path, librosa.load(self.separated_files[label], sr=None)[0], librosa.load(self.separated_files[label], sr=None)[1])
+
+    def new_instance(self):
+        if self.main_window:
+            self.main_window.new_instance()
+
+    def open_file(self):
+        if self.main_window:
+            self.main_window.open_file()

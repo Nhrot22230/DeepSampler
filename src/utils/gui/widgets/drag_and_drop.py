@@ -8,10 +8,10 @@ class DragDropWidget(QWidget):
         self.setAcceptDrops(True)
         self.setMinimumSize(300, 100)
         self.setStyleSheet("border: 2px dashed gray; border-radius: 10px; padding: 20px;")
-        
+
         self.label = QLabel("Drag and drop a file here", self)
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
+
         layout = QVBoxLayout()
         layout.addWidget(self.label)
         self.setLayout(layout)
@@ -32,6 +32,6 @@ class DragDropWidget(QWidget):
             file_path = urls[0].toLocalFile()
             if file_path.lower().endswith((".wav", ".mp4")):
                 if self.parent():
-                    self.parent().go_second_window(file_path)
+                    self.parent().parent().go_second_window(file_path)
             else:
                 self.label.setText("Invalid file, only .wav and .mp4 allowed")

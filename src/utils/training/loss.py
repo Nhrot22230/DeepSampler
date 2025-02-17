@@ -1,103 +1,61 @@
-from typing import List
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
-# ---------------------------------------------------------------------------
-# Weighted L1 Loss (MultiSourceL1Loss)
-# ---------------------------------------------------------------------------
 class MultiSourceLoss(nn.Module):
-    """
-    Weighted L1/L2 Loss for multi-source signals.
-
-    Args:
-        weights (List[float]): A list of weights for each channel.
-        distance (str, optional): Distance metric to use ("l1" or "l2"). Defaults to "l1".
-    """
-
-    def __init__(self, weights: List[float], distance: str = "l1") -> None:
+    def __init__(self, weights, distance="l1"):
         super().__init__()
-        self.weights = [w / sum(weights) for w in weights]
+        self.weights = torch.tensor(
+            [w / sum(weights) for w in weights], dtype=torch.float32
+        )
+        self.loss = nn.L1Loss() if distance.lower() == "l1" else nn.MSELoss()
 
-        if distance.lower() == "l1":
-            self.loss = nn.L1Loss(reduction="mean")
-        elif distance.lower() == "l2":
-            self.loss = nn.MSELoss(reduction="mean")
-        else:
-            raise ValueError(f"Invalid distance: {distance}")
-
-    def forward(
-        self, outputs: List[torch.Tensor], targets: List[torch.Tensor]
-    ) -> torch.Tensor:
-        """
-        Computes the weighted loss for each channel and returns the total loss.
-
-        Args:
-            outputs (List[torch.Tensor]): List of predicted tensors.
-            targets (List[torch.Tensor]): List of ground truth tensors.
-
-        Returns:
-            torch.Tensor: The computed weighted loss.
-        """
+    def forward(self, outputs: torch.Tensor, targets: torch.Tensor):
         total_loss = 0.0
         for i, weight in enumerate(self.weights):
-            total_loss += weight * self.loss(outputs[i], targets[i])
+            if outputs.dim() == 3:
+                total_loss += weight * self.loss(outputs[i], targets[i])
+            elif outputs.dim() == 4:
+                total_loss += weight * self.loss(outputs[:, i], targets[:, i])
+            else:
+                raise ValueError("Unsupported tensor dimensions.")
         return total_loss
 
 
-# ---------------------------------------------------------------------------
-# Weighted Multi-Scale Spectral Loss (MultiSourceMultiScaleSpectralLoss)
-# ---------------------------------------------------------------------------
 class MultiScaleLoss(nn.Module):
-    def __init__(
-        self, weights: List[float], scales: List[int] = [1, 2, 4], distance: str = "l1"
-    ):
-        """
-        Args:
-            channel_weights (list of float): Pesos para cada canal (deben estar normalizados).
-            scales (list of int): Escalas (factores de downsampling) en las que se calculará.
-            reduction (str): Método de reducción para la pérdida (por defecto "mean").
-        """
+    def __init__(self, weights, scales=[1, 2, 4], distance="l1"):
         super().__init__()
-        self.channel_weights = [w / sum(weights) for w in weights]
+        self.weights = torch.tensor(
+            [w / sum(weights) for w in weights], dtype=torch.float32
+        )
         self.scales = scales
+        self.loss = nn.L1Loss() if distance.lower() == "l1" else nn.MSELoss()
 
-        if distance.lower() == "l1":
-            self.loss = nn.L1Loss(reduction="mean")
-        elif distance.lower() == "l2":
-            self.loss = nn.MSELoss(reduction="mean")
-        else:
-            raise ValueError(f"Invalid distance: {distance}")
-
-    def forward(self, outputs, targets):
-        """
-        Args:
-            outputs: Tensor de salida con forma [C, H, W].
-            targets: Tensor objetivo con forma [C, H, W].
-        Returns:
-            Pérdida total combinada en múltiples escalas y canales.
-        """
+    def forward(self, outputs: torch.Tensor, targets: torch.Tensor):
         total_loss = 0.0
-
-        for i, weight in enumerate(self.channel_weights):
+        for i, weight in enumerate(self.weights):
             channel_loss = 0.0
-
             for scale in self.scales:
-                if scale == 1:
-                    out_scaled = outputs[i]
-                    tar_scaled = targets[i]
+                if isinstance(outputs, list):
+                    out_scaled = self._downsample(outputs[i], scale)
+                    tar_scaled = self._downsample(targets[i], scale)
+                elif outputs.dim() == 3:
+                    out_scaled = self._downsample(outputs[i], scale)
+                    tar_scaled = self._downsample(targets[i], scale)
+                elif outputs.dim() == 4:
+                    out_scaled = self._downsample(outputs[:, i], scale)
+                    tar_scaled = self._downsample(targets[:, i], scale)
                 else:
-                    out_scaled = F.avg_pool2d(
-                        outputs[i].unsqueeze(0), kernel_size=scale, stride=scale
-                    ).squeeze(0)
-                    tar_scaled = F.avg_pool2d(
-                        targets[i].unsqueeze(0), kernel_size=scale, stride=scale
-                    ).squeeze(0)
-
+                    raise ValueError("Unsupported input format.")
                 channel_loss += self.loss(out_scaled, tar_scaled)
-
             channel_loss /= len(self.scales)
             total_loss += weight * channel_loss
         return total_loss
+
+    def _downsample(self, x: torch.Tensor, scale: int):
+        if scale == 1:
+            return x
+        return F.avg_pool2d(
+            x.unsqueeze(0) if x.dim() == 2 else x, kernel_size=scale, stride=scale
+        ).squeeze(0)

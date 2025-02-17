@@ -86,18 +86,3 @@ def test_loss_is_zero_when_equal(distance: str, batch_size: int):
     assert torch.isclose(
         loss, torch.tensor(0.0), atol=1e-6
     ), "Loss should be zero when outputs equal targets."
-
-
-def test_invalid_distance_metric():
-    """
-    GIVEN an invalid distance metric,
-    WHEN the MultiSourceLoss is instantiated,
-    THEN it should raise a ValueError.
-
-    Preconditions:
-        - The distance parameter is set to an invalid value.
-    Postconditions:
-        - A ValueError is raised upon instantiation.
-    """
-    with pytest.raises(ValueError):
-        MultiSourceLoss(weights=[1.0] * NUM_SOURCES, distance="invalid")

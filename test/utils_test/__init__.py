@@ -48,4 +48,4 @@ def generate_batched_tensors(
     THEN:
         - It returns a list of torch.Tensor objects with shape [batch_size, n_freq, time_steps].
     """
-    return torch.rand(num_sources, batch_size, n_freq, time_steps)
+    return torch.rand(batch_size, num_sources, n_freq, time_steps)

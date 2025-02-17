@@ -35,18 +35,15 @@ class MUSDBDataset(Dataset):
         audio_chunk: AudioChunk = (
             AudioChunk.from_file(item) if isinstance(item, str) else item
         )
-
         target_keys = ["mixture", "vocals", "drums", "bass", "other"]
-
         for key in target_keys:
             audio_chunk[key] = log_spectrogram(
                 audio_chunk[key],
                 n_fft=self.n_fft,
                 hop_length=self.hop_length,
             )
-
         # Ensure that the mixture spectrogram has a channel dimension (unsqueezed).
-        input_spec = torch.stack([audio_chunk["mixture"]])
+        input_spec = audio_chunk["mixture"].unsqueeze(0)
         # Stack the target spectrograms for vocals, drums, bass, and other.
         target_spec = torch.stack(
             [audio_chunk[key] for key in target_keys if key != "mixture"]

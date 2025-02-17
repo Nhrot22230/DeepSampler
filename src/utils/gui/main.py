@@ -1,5 +1,3 @@
-import os
-
 from MainApp import MainApp
 from PyQt6.QtWidgets import QApplication
 

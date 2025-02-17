@@ -1,16 +1,21 @@
 import os
-import sys
 
 import librosa
 import matplotlib.pyplot as plt
 import moviepy.editor as mp
 import numpy as np
 import soundfile as sf
-from matplotlib.backends.backend_qt5agg import \
-    FigureCanvasQTAgg as FigureCanvas
-from PyQt6.QtGui import QIcon, QPixmap
-from PyQt6.QtWidgets import (QFileDialog, QHBoxLayout, QLabel, QMainWindow,
-                             QPushButton, QVBoxLayout, QWidget)
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import (
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 from widgets.toolbar import Toolbar
 
 

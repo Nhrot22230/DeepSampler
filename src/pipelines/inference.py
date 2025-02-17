@@ -1,11 +1,13 @@
 from typing import Dict, List
 
 import torch
+from src.utils.audio.processing import (
+    chunk_waveform,
+    inverse_log_spectrogram,
+    load_audio,
+    log_spectrogram,
+)
 from tqdm import tqdm
-
-from src.utils.audio.processing import (chunk_waveform,
-                                        inverse_log_spectrogram, load_audio,
-                                        log_spectrogram)
 
 
 def infer_pipeline(

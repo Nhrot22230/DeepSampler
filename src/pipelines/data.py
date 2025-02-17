@@ -2,12 +2,11 @@ import os
 from typing import Dict, List, Optional
 
 import torch
-from tqdm import tqdm
-
 from src.utils.audio.audio_chunk import AudioChunk
 from src.utils.audio.processing import chunk_waveform, load_audio
 from src.utils.data.dataset import MUSDBDataset
 from src.utils.logging import main_logger as logger
+from tqdm import tqdm
 
 
 def process_audio_folder(

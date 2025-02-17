@@ -1,17 +1,17 @@
+import os
 from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-from src.pipelines.inference import infer_pipeline
+from src.pipelines.infer import infer_pipeline
 from src.utils.audio.processing import load_audio
-from torch.utils.data import DataLoader
 from torchmetrics.audio import ScaleInvariantSignalDistortionRatio
 from tqdm import tqdm
 
 
 def eval_pipeline(
     model: torch.nn.Module,
-    dataloader: DataLoader,
+    dataset_path: str,
     sample_rate: int = 44100,
     chunk_seconds: float = 2,
     overlap: float = 0.0,
@@ -31,7 +31,7 @@ def eval_pipeline(
 
     Args:
         model (torch.nn.Module): Modelo de separación.
-        dataloader (DataLoader): DataLoader que provee muestras de evaluación.
+        musdb_path (str): Ruta al dataset MUSDB18.
         sample_rate (int, optional): Frecuencia de muestreo. Defaults a 44100.
         chunk_seconds (float, optional): Duración de cada chunk en segundos. Defaults a 2.
         overlap (float, optional): Fracción de solapamiento entre chunks (0.0 a <1.0). Defaults a 0.
@@ -47,11 +47,13 @@ def eval_pipeline(
     instruments = ["vocals", "drums", "bass", "other"]
     all_scores: Dict[str, List[float]] = {inst: [] for inst in instruments}
 
-    for sample in tqdm(dataloader, desc="Evaluating"):
-        mixture_path = sample["mixture"]
+    audio_folders: List[str] = os.listdir(dataset_path)
+
+    for sample in tqdm(audio_folders, desc="Evaluating"):
+        mixture_path = os.path.join(dataset_path, sample, "mixture.wav")
         separated_audio = infer_pipeline(
             model=model,
-            mixture_path=mixture_path,
+            mixture=mixture_path,
             sample_rate=sample_rate,
             chunk_seconds=chunk_seconds,
             overlap=overlap,
@@ -61,12 +63,12 @@ def eval_pipeline(
         )
 
         for inst in instruments:
-            gt_path = sample[inst]
+            gt_path = os.path.join(dataset_path, sample, f"{inst}.wav")
             gt_audio = load_audio(gt_path, sample_rate).to(device)
-            pred_audio = torch.tensor(separated_audio[inst], device=device)
-            min_len = min(gt_audio.shape[1], pred_audio.shape[1])
-            gt_audio = gt_audio[:, :min_len]
-            pred_audio = pred_audio[:, :min_len]
+            pred_audio = separated_audio[inst].clone().detach().to(device)
+            min_len = min(len(gt_audio), len(pred_audio))
+            gt_audio = gt_audio[:min_len]
+            pred_audio = pred_audio[:min_len]
             si_sdr_metric = ScaleInvariantSignalDistortionRatio().to(device)
             score = si_sdr_metric(pred_audio, gt_audio)
             all_scores[inst].append(score.item())

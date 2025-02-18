@@ -6,7 +6,7 @@ import moviepy.editor as mp
 import numpy as np
 import soundfile as sf
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -25,18 +25,21 @@ class SecondWindow(QMainWindow):
         self.main_window = main_window
         self.file_path = file_path
         self.separated_files = {}
-        self.process_audio()
         self.selected_model = selected_model
+        self.track_name = os.path.basename(file_path)
+        scriptDir = os.path.dirname(os.path.realpath(__file__))
+        self.thumbnail_path = os.path.join(scriptDir, "assets", "track.png")
+        self.track_duration = ""
+        self.process_audio()
+        self.extract_metadata()
         self.initUI()
         self.setWindowTitle("DinoSampler")
-        scriptDir = os.path.dirname(os.path.realpath(__file__))
         logo_path = os.path.join(scriptDir, "assets", "dinosampler_logo.png")
         self.setWindowIcon(QIcon(logo_path))
 
     def process_audio(self):
         script_dir = os.path.dirname(os.path.realpath(__file__))
         converted_dir = os.path.join(script_dir, "converted_tracks")
-
         os.makedirs(converted_dir, exist_ok=True)
 
         if self.file_path.endswith(".mp4"):
@@ -59,11 +62,22 @@ class SecondWindow(QMainWindow):
         layout = QVBoxLayout(centralWidget)
         infoLayout = QHBoxLayout()
 
-        self.label = QLabel(f"Audio File: {self.file_path}")
-        self.duration_label = QLabel()
-        infoLayout.addWidget(self.label)
-        infoLayout.addStretch()
-        infoLayout.addWidget(self.duration_label)
+        self.thumbnail_label= QLabel()
+        if os.path.exists(self.thumbnail_path):
+            pixmap = QPixmap(self.thumbnail_path)
+        else:
+            print(f"Error: No se encontró el thumbnail en {self.thumbnail_path}")
+            pixmap = QPixmap()  # Crea un pixmap vacío en caso de error
+
+        self.thumbnail_label.setPixmap(pixmap.scaled(100, 100))
+        infoLayout.addWidget(self.thumbnail_label)
+
+        textLayout = QVBoxLayout()
+        self.track_label = QLabel(self.track_name)
+        self.duration_label = QLabel(f"Duration: {self.track_duration}")
+        textLayout.addWidget(self.track_label)
+        textLayout.addWidget(self.duration_label)
+        infoLayout.addLayout(textLayout)
         layout.addLayout(infoLayout)
 
         self.canvas = FigureCanvas(plt.figure(figsize=(6, 1)))
@@ -106,16 +120,8 @@ class SecondWindow(QMainWindow):
     def plot_waveform(self):
         y, sr = librosa.load(
             self.file_path, sr=44100
-        )  # Carga el audio sin modificar SR
+        )
         time = np.linspace(0, len(y) / sr, len(y))  # Eje de tiempo
-        duration = len(y) / sr  # Duración en segundos
-
-        minutes = int(duration // 60)
-        seconds = int(duration % 60)
-        formatted_duration = f"{minutes}:{seconds:02d}"
-
-        self.duration_label.setText(f"Duration: {formatted_duration}")
-
         self.canvas.figure.set_facecolor("black")
         ax = self.canvas.figure.add_subplot(111)
         ax.clear()
@@ -131,7 +137,6 @@ class SecondWindow(QMainWindow):
     def separate(self):
         y, sr = librosa.load(self.file_path, sr=None)
         time = np.linspace(0, len(y) / sr, len(y))
-
         output_dir = os.path.join(os.path.dirname(__file__), "temp_tracks")
         os.makedirs(output_dir, exist_ok=True)
 
@@ -152,7 +157,6 @@ class SecondWindow(QMainWindow):
             output_filename = os.path.join(output_dir, f"{label.lower()}_separated.wav")
             sf.write(output_filename, y, sr)  # Guardar el audio en un archivo
             self.separated_files[label] = output_filename  # Guardar en el diccionario
-
             btn.setEnabled(True)
 
     def download_file(self, label):
@@ -174,3 +178,23 @@ class SecondWindow(QMainWindow):
     def open_file(self):
         if self.main_window:
             self.main_window.open_file()
+
+    def extract_metadata(self):
+        os.makedirs("temp_thumbnails", exist_ok=True)
+        if self.file_path.endswith(".mp4"):
+            video = mp.VideoFileClip(self.file_path)
+            if video.duration:
+                minutes = int(video.duration // 60)
+                seconds = int(video.duration % 60)
+                self.track_duration = f"{minutes}:{seconds:02d}"
+            if video.size:
+                video.save_frame(self.thumbnail_path, t=1)
+                thumbnail_path = os.path.join("assets", "thumbnail.png")
+                video.save_frame(thumbnail_path, t=1)
+                self.thumbnail_path = thumbnail_path
+        else:
+            y, sr = librosa.load(self.file_path, sr=44100)
+            duration = len(y) / sr
+            minutes = int(duration // 60)
+            seconds = int(duration % 60)
+            self.track_duration = f"{minutes}:{seconds:02d}"

@@ -111,6 +111,7 @@ mdurl==0.1.2
 mir_eval==0.8.0
 mistune==3.1.1
 ml-dtypes==0.4.1
+moviepy==1.0.3
 mpmath==1.3.0
 msgpack==1.1.0
 multidict==6.1.0
@@ -185,6 +186,9 @@ pytorch-lightning==2.5.0.post0
 pytorch-metric-learning==2.8.1
 pytorch-ranger==0.1.1
 pytz==2025.1
+PyQt6==6.8.1
+PyQt6-Qt6==6.8.2
+PyQt6_sip==13.10.0
 PyYAML==6.0.2
 pyzmq==26.2.1
 referencing==0.36.2

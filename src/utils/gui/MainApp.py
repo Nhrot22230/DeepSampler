@@ -1,10 +1,12 @@
 import os
 
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QFileDialog, QMainWindow, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFileDialog, QMainWindow, QVBoxLayout, QWidget, QMessageBox
 from SecondWindow import SecondWindow
 from widgets.drag_and_drop import DragDropWidget
 from widgets.toolbar import Toolbar
+from moviepy.editor import VideoFileClip
+from mutagen.wave import WAVE
 
 
 class MainApp(QMainWindow):
@@ -40,7 +42,22 @@ class MainApp(QMainWindow):
             self, "Select File", filter="Audio Files (*.wav *.mp4)"
         )
         if file:
+            if not self.validate_duration(file):
+                QMessageBox.warning(self, "Invalid File", "El archivo supera los 5 minutos.")
+                return
             self.go_second_window(file)
+
+    def validate_duration(self, file_path):
+        if file_path.lower().endswith(".mp4"):
+            clip = VideoFileClip(file_path)
+            duration = clip.duration
+            clip.close()
+        elif file_path.lower().endswith(".wav"):
+            audio = WAVE(file_path)
+            duration = audio.info.length
+        else:
+            return False
+        return duration <= 300
 
     def go_second_window(self, file):
         new_app = SecondWindow(file, self, self.selected_model)

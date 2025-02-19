@@ -1,6 +1,7 @@
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QAction, QActionGroup
-from PyQt6.QtWidgets import QApplication, QMenu, QStyleFactory, QToolBar, QToolButton
+from PyQt6.QtWidgets import (QApplication, QMenu, QStyleFactory, QToolBar,
+                             QToolButton)
 
 
 class Toolbar(QObject):

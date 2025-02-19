@@ -1,12 +1,14 @@
 import os
-from typing import Dict, List, Optional
+from typing import List, Optional
 
+import numpy as np
 import torch
+from tqdm import tqdm
+
 from src.utils.audio.audio_chunk import AudioChunk
 from src.utils.audio.processing import chunk_waveform, load_audio
 from src.utils.data.dataset import MUSDBDataset
 from src.utils.logging import main_logger as logger
-from tqdm import tqdm
 
 
 def process_audio_folder(
@@ -14,58 +16,87 @@ def process_audio_folder(
     sample_rate: int,
     chunk_duration: float,
     overlap: float,
+    isolated: Optional[List[str]] = None,
 ) -> List[AudioChunk]:
     """
-    Processes an audio folder and returns a list of AudioChunks.
+    Processes an audio folder and returns a list of AudioChunk objects.
+
+    If `isolated` is provided, the mixture is computed as the sum of the specified
+    isolated channels, and non-specified channels are replaced with zeros.
+    Valid channel keys are: "bass", "drums", "other", "vocals". The loaded "mixture"
+    file is ignored in this case.
 
     Args:
-        audio_folder: Path to the folder containing audio files.
-        sample_rate: The sample rate to use.
-        chunk_duration: Duration of each chunk in seconds.
-        overlap: Fraction of overlap between chunks.
+        audio_folder (str): Path to the folder containing audio files.
+        sample_rate (int): Audio sample rate.
+        chunk_duration (float): Duration (in seconds) of each chunk.
+        overlap (float): Fraction of overlap between chunks.
+        isolated (Optional[List[str]]): List of channels to use for computing the mixture.
+                                        If None, the loaded "mixture" file is used.
 
     Returns:
-        List[AudioChunk]: A list of AudioChunk objects.
+        List[AudioChunk]: A list of processed AudioChunk objects.
     """
-    if not os.path.isdir(audio_folder):
-        raise FileNotFoundError(f"Audio folder '{audio_folder}' does not exist.")
-
-    instruments: Dict[str, List[torch.Tensor]] = {
-        "mixture": [],
-        "bass": [],
-        "drums": [],
-        "other": [],
-        "vocals": [],
-    }
+    channels: List[str] = ["mixture", "bass", "drums", "other", "vocals"]
+    if isolated is not None:
+        isolated = [ch for ch in isolated if ch in channels and ch != "mixture"]
 
     chunk_len = int(chunk_duration * sample_rate)
     hop_len = int(chunk_len * (1 - overlap))
 
-    for inst in instruments:
-        audio_path = os.path.join(audio_folder, f"{inst}.wav")
+    channel_chunks = {}
+    for ch in channels:
+        audio_path = os.path.join(audio_folder, f"{ch}.wav")
         if not os.path.isfile(audio_path):
-            raise FileNotFoundError(f"Audio file '{audio_path}' not found. Skipping.")
-
+            raise FileNotFoundError(f"Audio file '{audio_path}' not found.")
         waveform = load_audio(path=audio_path, target_sr=sample_rate, mono=True)
-        chunks = chunk_waveform(waveform=waveform, chunk_len=chunk_len, hop_len=hop_len)
-        instruments[inst].extend(chunks)
+        chunks = chunk_waveform(waveform, chunk_len=chunk_len, hop_len=hop_len)
+        channel_chunks[ch] = chunks
 
-    audio_chunks = [
-        AudioChunk(
-            mixture=m,
-            bass=b,
-            drums=d,
-            other=o,
-            vocals=v,
+    num_chunks = len(channel_chunks[channels[0]])
+    for ch in channels:
+        if len(channel_chunks[ch]) != num_chunks:
+            raise ValueError(f"Chunk count mismatch for channel '{ch}'.")
+
+    audio_chunks = []
+    for i in range(num_chunks):
+        if isolated:
+            mixture_chunk = sum(channel_chunks[ch][i] for ch in isolated)
+            bass_chunk = (
+                channel_chunks["bass"][i]
+                if "bass" in isolated
+                else torch.zeros_like(channel_chunks["bass"][i])
+            )
+            drums_chunk = (
+                channel_chunks["drums"][i]
+                if "drums" in isolated
+                else torch.zeros_like(channel_chunks["drums"][i])
+            )
+            other_chunk = (
+                channel_chunks["other"][i]
+                if "other" in isolated
+                else torch.zeros_like(channel_chunks["other"][i])
+            )
+            vocals_chunk = (
+                channel_chunks["vocals"][i]
+                if "vocals" in isolated
+                else torch.zeros_like(channel_chunks["vocals"][i])
+            )
+        else:
+            mixture_chunk = channel_chunks["mixture"][i]
+            bass_chunk = channel_chunks["bass"][i]
+            drums_chunk = channel_chunks["drums"][i]
+            other_chunk = channel_chunks["other"][i]
+            vocals_chunk = channel_chunks["vocals"][i]
+
+        chunk_obj = AudioChunk(
+            mixture=mixture_chunk,
+            bass=bass_chunk,
+            drums=drums_chunk,
+            other=other_chunk,
+            vocals=vocals_chunk,
         )
-        for m, b, d, o, v in zip(
-            instruments["mixture"],
-            instruments["bass"],
-            instruments["drums"],
-            instruments["other"],
-            instruments["vocals"],
-        )
-    ]
+        audio_chunks.append(chunk_obj)
 
     return audio_chunks
 
@@ -79,10 +110,15 @@ def musdb_pipeline(
     hop_length: int = 512,
     max_chunks: Optional[int] = None,
     save_dir: Optional[str] = None,
+    shuffle: bool = False,
+    isolated: Optional[List[str]] = None,
 ) -> MUSDBDataset:
     """
     Processes the MUSDB18 dataset by iterating over track folders, extracting audio chunks,
     and optionally saving each AudioChunk to disk.
+
+    If 'isolated' is provided, the mixture is computed as the sum of the channels in the list.
+    If 'shuffle' is True, the chunks within each track folder are shuffled.
 
     Args:
         musdb_path: Path to the MUSDB18 dataset.
@@ -93,6 +129,9 @@ def musdb_pipeline(
         hop_length: Hop length for STFT.
         max_chunks: Maximum number of chunks to process.
         save_dir: If provided, directory to save processed AudioChunks as .pt files.
+        shuffle: Whether to shuffle chunks within each track.
+        isolated: List of instrument channels to compute the mixture (e.g. ["vocals"]).
+                  If provided, the mixture is computed as the sum of these channels.
 
     Returns:
         MUSDBDataset: A dataset containing all processed AudioChunks or file paths.
@@ -106,27 +145,29 @@ def musdb_pipeline(
     all_audio_chunks = []
     processed_chunks = 0
 
-    # Get track folder paths.
     track_folders = [
         os.path.join(musdb_path, folder)
         for folder in os.listdir(musdb_path)
         if os.path.isdir(os.path.join(musdb_path, folder))
     ]
+
+    if shuffle:
+        track_folders = np.random.permutation(track_folders)
+
     logger.info(f"Found {len(track_folders)} track folders in '{musdb_path}'.")
 
-    # Process each track folder.
     for track_folder in tqdm(track_folders, desc="Processing tracks"):
         audio_chunks = process_audio_folder(
             audio_folder=track_folder,
             sample_rate=sample_rate,
             chunk_duration=chunk_duration,
             overlap=overlap,
+            isolated=isolated,
         )
         if not audio_chunks:
             logger.warning(f"No audio chunks found in '{track_folder}'.")
             raise ValueError("No audio chunks found.")
 
-        # Limit to remaining chunks if max_chunks is set.
         if max_chunks is not None:
             remaining = max_chunks - processed_chunks
             if remaining <= 0:
@@ -144,7 +185,6 @@ def musdb_pipeline(
         if max_chunks is not None and processed_chunks >= max_chunks:
             break
 
-    # Build dataset from saved files or in-memory chunks.
     if save_dir:
         data_files = sorted(
             [

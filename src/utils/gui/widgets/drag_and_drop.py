@@ -1,8 +1,9 @@
+from moviepy.editor import VideoFileClip
+from mutagen.wave import WAVE
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent
-from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget, QFileDialog, QMessageBox
-from mutagen.wave import WAVE
-from moviepy.editor import VideoFileClip
+from PyQt6.QtWidgets import (QFileDialog, QLabel, QMessageBox, QVBoxLayout,
+                             QWidget)
 
 
 class DragDropWidget(QWidget):
@@ -24,7 +25,9 @@ class DragDropWidget(QWidget):
     def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():
             urls = event.mimeData().urls()
-            if any(url.toLocalFile().lower().endswith((".wav", ".mp4")) for url in urls):
+            if any(
+                url.toLocalFile().lower().endswith((".wav", ".mp4")) for url in urls
+            ):
                 event.acceptProposedAction()
             else:
                 self.label.setText("Invalid file type, only .wav and .mp4")
@@ -71,7 +74,9 @@ class FileSelector(QWidget):
             if self.validate_duration(file):
                 self.go_second_window(file)
             else:
-                QMessageBox.warning(self, "Invalid File", "File exceeds 5 minutes limit.")
+                QMessageBox.warning(
+                    self, "Invalid File", "File exceeds 5 minutes limit."
+                )
 
     def validate_duration(self, file_path):
         try:

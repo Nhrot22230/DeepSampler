@@ -3,10 +3,11 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-from src.pipelines.infer import infer_pipeline
-from src.utils.audio.processing import load_audio
 from torchmetrics.audio import ScaleInvariantSignalDistortionRatio
 from tqdm import tqdm
+
+from src.pipelines.infer import infer_pipeline
+from src.utils.audio.processing import load_audio
 
 
 def eval_pipeline(

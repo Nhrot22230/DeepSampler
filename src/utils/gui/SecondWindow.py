@@ -5,19 +5,13 @@ import matplotlib.pyplot as plt
 import moviepy.editor as mp
 import numpy as np
 import soundfile as sf
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from PyQt6.QtGui import QIcon, QPixmap
-from PyQt6.QtWidgets import (
-    QFileDialog,
-    QHBoxLayout,
-    QLabel,
-    QMainWindow,
-    QPushButton,
-    QVBoxLayout,
-    QWidget,
-)
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+from matplotlib.backends.backend_qt5agg import \
+    FigureCanvasQTAgg as FigureCanvas
 from PyQt6.QtCore import QUrl
+from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
+from PyQt6.QtWidgets import (QFileDialog, QHBoxLayout, QLabel, QMainWindow,
+                             QPushButton, QVBoxLayout, QWidget)
 from widgets.toolbar import Toolbar
 
 
@@ -70,7 +64,7 @@ class SecondWindow(QMainWindow):
         layout = QVBoxLayout(centralWidget)
         infoLayout = QHBoxLayout()
 
-        self.thumbnail_label= QLabel()
+        self.thumbnail_label = QLabel()
         if os.path.exists(self.thumbnail_path):
             pixmap = QPixmap(self.thumbnail_path)
         else:
@@ -113,21 +107,23 @@ class SecondWindow(QMainWindow):
             canvas = FigureCanvas(plt.figure(figsize=(6, 1)))
             canvas.figure.set_facecolor("black")
             download_btn = QPushButton()
-            assets_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "assets")
-            download_btn.setIcon(QIcon(os.path.join(assets_path,"download_icon.png")))
+            assets_path = os.path.join(
+                os.path.dirname(os.path.realpath(__file__)), "assets"
+            )
+            download_btn.setIcon(QIcon(os.path.join(assets_path, "download_icon.png")))
             download_btn.setFixedSize(32, 32)
             download_btn.setEnabled(False)
             download_btn.clicked.connect(lambda _, lbl=label: self.download_file(lbl))
 
             play_btn = QPushButton()
             play_btn.setIcon(self.play_icon)
-            play_btn.setFixedSize(32,32)
+            play_btn.setFixedSize(32, 32)
             play_btn.setEnabled(False)
             play_btn.clicked.connect(lambda _, lbl=label: self.toggle_play_pause(lbl))
 
             reset_btn = QPushButton()
             reset_btn.setIcon(self.reset_icon)
-            reset_btn.setFixedSize(32,32)
+            reset_btn.setFixedSize(32, 32)
             reset_btn.setEnabled(False)
             reset_btn.clicked.connect(lambda _, lbl=label: self.reset_track(lbl))
 
@@ -144,11 +140,8 @@ class SecondWindow(QMainWindow):
             self.reset_buttons.append(reset_btn)
             self.play_buttons[label] = play_btn
 
-
     def plot_waveform(self):
-        y, sr = librosa.load(
-            self.file_path, sr=44100
-        )
+        y, sr = librosa.load(self.file_path, sr=44100)
         time = np.linspace(0, len(y) / sr, len(y))  # Eje de tiempo
         self.canvas.figure.set_facecolor("black")
         ax = self.canvas.figure.add_subplot(111)
@@ -169,7 +162,13 @@ class SecondWindow(QMainWindow):
         os.makedirs(output_dir, exist_ok=True)
 
         for i, (canvas, label, download_btn, play_btn, reset_btn) in enumerate(
-            zip(self.waveform_canvases, self.track_labels, self.download_buttons, self.play_buttons, self.reset_buttons)
+            zip(
+                self.waveform_canvases,
+                self.track_labels,
+                self.download_buttons,
+                self.play_buttons,
+                self.reset_buttons,
+            )
         ):
             ax = canvas.figure.add_subplot(111)
             ax.clear()
@@ -188,7 +187,6 @@ class SecondWindow(QMainWindow):
             download_btn.setEnabled(True)
             reset_btn.setEnabled(True)
             self.play_buttons[label].setEnabled(True)
-
 
     def download_file(self, label):
         if label in self.separated_files:
@@ -219,7 +217,11 @@ class SecondWindow(QMainWindow):
                 minutes = int(video.duration // 60)
                 seconds = int(video.duration % 60)
                 self.track_duration = f"{minutes}:{seconds:02d}"
-                thumbnail_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp_thumbnails", "thumbnail.png")
+                thumbnail_path = os.path.join(
+                    os.path.dirname(os.path.realpath(__file__)),
+                    "temp_thumbnails",
+                    "thumbnail.png",
+                )
                 video.save_frame(thumbnail_path, t=1)
                 self.thumbnail_path = thumbnail_path
         else:
@@ -232,8 +234,13 @@ class SecondWindow(QMainWindow):
     def toggle_play_pause(self, track_label):
         if track_label not in self.audio_outputs:
             self.audio_outputs[track_label] = QMediaPlayer()
-            self.audio_outputs[track_label].setSource(QUrl.fromLocalFile
-            (os.path.join(os.path.realpath(__file__), "temp_tracks",f"{track_label}.wav")))
+            self.audio_outputs[track_label].setSource(
+                QUrl.fromLocalFile(
+                    os.path.join(
+                        os.path.realpath(__file__), "temp_tracks", f"{track_label}.wav"
+                    )
+                )
+            )
 
         if self.currently_playing and self.currently_playing != track_label:
             self.players[self.currently_playing].pause()

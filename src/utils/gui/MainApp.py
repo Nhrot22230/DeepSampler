@@ -1,12 +1,13 @@
 import os
 
+from moviepy.editor import VideoFileClip
+from mutagen.wave import WAVE
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QFileDialog, QMainWindow, QVBoxLayout, QWidget, QMessageBox
+from PyQt6.QtWidgets import (QFileDialog, QMainWindow, QMessageBox,
+                             QVBoxLayout, QWidget)
 from SecondWindow import SecondWindow
 from widgets.drag_and_drop import DragDropWidget
 from widgets.toolbar import Toolbar
-from moviepy.editor import VideoFileClip
-from mutagen.wave import WAVE
 
 
 class MainApp(QMainWindow):
@@ -43,7 +44,9 @@ class MainApp(QMainWindow):
         )
         if file:
             if not self.validate_duration(file):
-                QMessageBox.warning(self, "Invalid File", "El archivo supera los 5 minutos.")
+                QMessageBox.warning(
+                    self, "Invalid File", "El archivo supera los 5 minutos."
+                )
                 return
             self.go_second_window(file)
 

@@ -16,6 +16,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+from PyQt6.QtCore import QUrl
 from widgets.toolbar import Toolbar
 
 
@@ -26,10 +28,16 @@ class SecondWindow(QMainWindow):
         self.file_path = file_path
         self.separated_files = {}
         self.selected_model = selected_model
+        self.players = {}
+        self.audio_outputs = {}
+        self.currently_playing = None
         self.track_name = os.path.basename(file_path)
         scriptDir = os.path.dirname(os.path.realpath(__file__))
         self.thumbnail_path = os.path.join(scriptDir, "assets", "track.png")
         self.track_duration = ""
+        self.play_icon = QIcon(os.path.join(scriptDir, "assets", "play_icon.png"))
+        self.pause_icon = QIcon(os.path.join(scriptDir, "assets", "pause_icon.png"))
+        self.reset_icon = QIcon(os.path.join(scriptDir, "assets", "reset_icon.png"))
         self.extract_metadata()
         self.process_audio()
         self.initUI()
@@ -93,6 +101,8 @@ class SecondWindow(QMainWindow):
         self.track_labels = ["Vocals", "Drums", "Bass", "Other"]
         self.waveform_canvases = []
         self.download_buttons = []
+        self.reset_buttons = []
+        self.play_buttons = {}
 
         for label in self.track_labels:
             track_layout = QVBoxLayout()
@@ -103,14 +113,27 @@ class SecondWindow(QMainWindow):
             canvas = FigureCanvas(plt.figure(figsize=(6, 1)))
             canvas.figure.set_facecolor("black")
             download_btn = QPushButton()
-            scriptDir = os.path.dirname(os.path.realpath(__file__))
-            icon_path = os.path.join(scriptDir, "assets", "download_icon.png")
-            download_btn.setIcon(QIcon(icon_path))
+            assets_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "assets")
+            download_btn.setIcon(QIcon(os.path.join(assets_path,"download_icon.png")))
             download_btn.setFixedSize(32, 32)
             download_btn.setEnabled(False)
             download_btn.clicked.connect(lambda _, lbl=label: self.download_file(lbl))
 
+            play_btn = QPushButton()
+            play_btn.setIcon(self.play_icon)
+            play_btn.setFixedSize(32,32)
+            play_btn.setEnabled(False)
+            play_btn.clicked.connect(lambda _, lbl=label: self.toggle_play_pause(lbl))
+
+            reset_btn = QPushButton()
+            reset_btn.setIcon(self.reset_icon)
+            reset_btn.setFixedSize(32,32)
+            reset_btn.setEnabled(False)
+            reset_btn.clicked.connect(lambda _, lbl=label: self.reset_track(lbl))
+
             track_sound_layout.addWidget(canvas)
+            track_sound_layout.addWidget(play_btn)
+            track_sound_layout.addWidget(reset_btn)
             track_sound_layout.addWidget(download_btn)
 
             track_layout.addLayout(track_sound_layout)
@@ -118,6 +141,9 @@ class SecondWindow(QMainWindow):
             layout.addLayout(track_layout)
             self.waveform_canvases.append(canvas)
             self.download_buttons.append(download_btn)
+            self.reset_buttons.append(reset_btn)
+            self.play_buttons[label] = play_btn
+
 
     def plot_waveform(self):
         y, sr = librosa.load(
@@ -142,8 +168,8 @@ class SecondWindow(QMainWindow):
         output_dir = os.path.join(os.path.dirname(__file__), "temp_tracks")
         os.makedirs(output_dir, exist_ok=True)
 
-        for i, (canvas, label, btn) in enumerate(
-            zip(self.waveform_canvases, self.track_labels, self.download_buttons)
+        for i, (canvas, label, download_btn, play_btn, reset_btn) in enumerate(
+            zip(self.waveform_canvases, self.track_labels, self.download_buttons, self.play_buttons, self.reset_buttons)
         ):
             ax = canvas.figure.add_subplot(111)
             ax.clear()
@@ -159,7 +185,10 @@ class SecondWindow(QMainWindow):
             output_filename = os.path.join(output_dir, f"{label.lower()}_separated.wav")
             sf.write(output_filename, y, sr)  # Guardar el audio en un archivo
             self.separated_files[label] = output_filename  # Guardar en el diccionario
-            btn.setEnabled(True)
+            download_btn.setEnabled(True)
+            reset_btn.setEnabled(True)
+            self.play_buttons[label].setEnabled(True)
+
 
     def download_file(self, label):
         if label in self.separated_files:
@@ -199,3 +228,48 @@ class SecondWindow(QMainWindow):
             minutes = int(duration // 60)
             seconds = int(duration % 60)
             self.track_duration = f"{minutes}:{seconds:02d}"
+
+    def toggle_play_pause(self, track_label):
+        if track_label not in self.audio_outputs:
+            self.audio_outputs[track_label] = QMediaPlayer()
+            self.audio_outputs[track_label].setSource(QUrl.fromLocalFile
+            (os.path.join(os.path.realpath(__file__), "temp_tracks",f"{track_label}.wav")))
+
+        if self.currently_playing and self.currently_playing != track_label:
+            self.players[self.currently_playing].pause()
+            self.play_buttons[self.currently_playing].setIcon(self.play_icon)
+
+        if track_label not in self.players:
+            audio_output = QAudioOutput()
+            audio_output.setVolume(0.5)
+
+            player = QMediaPlayer()
+            player.setAudioOutput(audio_output)
+
+            # Guardamos ambos objetos en la instancia de la clase para que persistan
+            self.players[track_label] = player
+            self.audio_outputs[track_label] = audio_output
+
+            # Verificar si el archivo existe antes de cargarlo
+            file_path = self.separated_files.get(track_label, "")
+            if not os.path.exists(file_path):
+                print(f"Error: No se encontró el archivo {file_path}")
+                return
+
+            player.setSource(QUrl.fromLocalFile(file_path))
+
+        player = self.players[track_label]
+        play_btn = self.play_buttons[track_label]
+        self.currently_playing = track_label
+
+        if player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            player.pause()
+            play_btn.setIcon(self.play_icon)
+        else:
+            player.play()
+            play_btn.setIcon(self.pause_icon)
+
+    def reset_track(self, track_label):
+        if track_label in self.players:
+            player = self.players[track_label]
+            player.setPosition(0)

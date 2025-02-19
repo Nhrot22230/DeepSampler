@@ -14,7 +14,7 @@ class DragDropWidget(QWidget):
             "border: 2px dashed gray; border-radius: 10px; padding: 20px;"
         )
 
-        self.label = QLabel("Drag and drop a file here", self)
+        self.label = QLabel("Drag and drop a file here\n(.mp4, .wav)", self)
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         layout = QVBoxLayout()

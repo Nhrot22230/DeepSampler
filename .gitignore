@@ -178,5 +178,6 @@ experiments/*
 
 converted_tracks/
 temp_tracks/
+temp_thumbnails/
 
 .vscode/launch.json

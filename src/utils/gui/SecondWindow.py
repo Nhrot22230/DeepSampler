@@ -30,8 +30,8 @@ class SecondWindow(QMainWindow):
         scriptDir = os.path.dirname(os.path.realpath(__file__))
         self.thumbnail_path = os.path.join(scriptDir, "assets", "track.png")
         self.track_duration = ""
-        self.process_audio()
         self.extract_metadata()
+        self.process_audio()
         self.initUI()
         self.setWindowTitle("DinoSampler")
         logo_path = os.path.join(scriptDir, "assets", "dinosampler_logo.png")
@@ -77,7 +77,9 @@ class SecondWindow(QMainWindow):
         self.duration_label = QLabel(f"Duration: {self.track_duration}")
         textLayout.addWidget(self.track_label)
         textLayout.addWidget(self.duration_label)
+        textLayout.addStretch()
         infoLayout.addLayout(textLayout)
+        infoLayout.addStretch()
         layout.addLayout(infoLayout)
 
         self.canvas = FigureCanvas(plt.figure(figsize=(6, 1)))
@@ -180,16 +182,15 @@ class SecondWindow(QMainWindow):
             self.main_window.open_file()
 
     def extract_metadata(self):
-        os.makedirs("temp_thumbnails", exist_ok=True)
+        temp_thumbnails_dir = os.path.join(os.path.dirname(__file__), "temp_thumbnails")
+        os.makedirs(temp_thumbnails_dir, exist_ok=True)
         if self.file_path.endswith(".mp4"):
             video = mp.VideoFileClip(self.file_path)
             if video.duration:
                 minutes = int(video.duration // 60)
                 seconds = int(video.duration % 60)
                 self.track_duration = f"{minutes}:{seconds:02d}"
-            if video.size:
-                video.save_frame(self.thumbnail_path, t=1)
-                thumbnail_path = os.path.join("assets", "thumbnail.png")
+                thumbnail_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp_thumbnails", "thumbnail.png")
                 video.save_frame(thumbnail_path, t=1)
                 self.thumbnail_path = thumbnail_path
         else:

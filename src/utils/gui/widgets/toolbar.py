@@ -40,7 +40,7 @@ class Toolbar(QObject):
         self.use_palette_action = QAction(
             "Use Theme's Standard Palette", self.parent, checkable=True
         )
-        self.use_palette_action.setChecked(True)
+        self.use_palette_action.setChecked(False)
         self.use_palette_action.triggered.connect(self.change_palette)
         theme_menu.addAction(self.use_palette_action)
 

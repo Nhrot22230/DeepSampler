@@ -1,10 +1,12 @@
+# SecondWindow.py
 import os
-
 import librosa
 import matplotlib.pyplot as plt
 import moviepy.editor as mp
 import numpy as np
 import soundfile as sf
+import torch
+
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QIcon, QPixmap
@@ -14,6 +16,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -24,7 +27,7 @@ from src.utils.gui.widgets.toolbar import Toolbar
 class SecondWindow(QMainWindow):
     def __init__(self, file_path, main_window, selected_model):
         super().__init__()
-        self.main_window = main_window
+        self.main_window = main_window  # Must have a 'models' dict attribute.
         self.file_path = file_path
         self.separated_files = {}
         self.selected_model = selected_model
@@ -40,6 +43,8 @@ class SecondWindow(QMainWindow):
         self.reset_icon = QIcon(os.path.join(scriptDir, "assets", "reset_icon.png"))
         self.extract_metadata()
         self.process_audio()
+
+        # Setup main audio player.
         self.media_player_main = QMediaPlayer()
         main_track_src = os.path.join(
             os.path.dirname(os.path.realpath(__file__)), self.file_path
@@ -48,6 +53,7 @@ class SecondWindow(QMainWindow):
         self.audio_output_main = QAudioOutput()
         self.audio_output_main.setVolume(0.5)
         self.media_player_main.setAudioOutput(self.audio_output_main)
+
         self.initUI()
         self.setWindowTitle("DinoSampler")
         logo_path = os.path.join(scriptDir, "assets", "dinosampler_logo.png")
@@ -61,12 +67,9 @@ class SecondWindow(QMainWindow):
         if self.file_path.endswith(".mp4"):
             base_name = os.path.basename(self.file_path).replace(".mp4", ".wav")
             wav_path = os.path.join(converted_dir, base_name)
-
-            # Convertir MP4 a WAV
+            # Convert MP4 to WAV.
             video = mp.AudioFileClip(self.file_path)
             video.write_audiofile(wav_path, codec="pcm_s16le")
-
-            # Usar el nuevo archivo convertido
             self.file_path = wav_path
 
     def initUI(self):
@@ -82,9 +85,8 @@ class SecondWindow(QMainWindow):
         if os.path.exists(self.thumbnail_path):
             pixmap = QPixmap(self.thumbnail_path)
         else:
-            print(f"Error: No se encontró el thumbnail en {self.thumbnail_path}")
-            pixmap = QPixmap()  # Crea un pixmap vacío en caso de error
-
+            print(f"Error: Thumbnail not found at {self.thumbnail_path}")
+            pixmap = QPixmap()
         self.thumbnail_label.setPixmap(pixmap.scaled(100, 100))
         infoLayout.addWidget(self.thumbnail_label)
 
@@ -165,7 +167,6 @@ class SecondWindow(QMainWindow):
             track_sound_layout.addWidget(play_btn)
             track_sound_layout.addWidget(reset_btn)
             track_sound_layout.addWidget(download_btn)
-
             track_layout.addLayout(track_sound_layout)
 
             layout.addLayout(track_layout)
@@ -176,7 +177,7 @@ class SecondWindow(QMainWindow):
 
     def plot_waveform(self):
         y, sr = librosa.load(self.file_path, sr=44100)
-        time = np.linspace(0, len(y) / sr, len(y))  # Eje de tiempo
+        time = np.linspace(0, len(y) / sr, len(y))
         self.canvas.figure.set_facecolor("black")
         ax = self.canvas.figure.add_subplot(111)
         ax.clear()
@@ -190,25 +191,48 @@ class SecondWindow(QMainWindow):
         self.canvas.draw()
 
     def separate(self):
-        y, sr = librosa.load(self.file_path, sr=None)
-        time = np.linspace(0, len(y) / sr, len(y))
+        from src.pipelines.infer import infer_pipeline
+
+        # Retrieve the model instance (all models should reside in self.main_window.models).
+        print(f"Selected model: {self.toolbar.selected_model}")
+        try:
+            model = self.main_window.models[self.toolbar.selected_model]
+        except Exception:
+            QMessageBox.critical(self, "Error", "Model not found")
+            return
+
+        # Force model operations to CPU.
+        device = torch.device("cpu")
+
+        # Run the inference pipeline.
+        separated_audio = infer_pipeline(
+            model,
+            self.file_path,
+            sample_rate=44100,
+            chunk_seconds=2,
+            overlap=0,
+            n_fft=2048,
+            hop_length=512,
+            device=device,
+        )
+
         output_dir = os.path.join(os.path.dirname(__file__), "temp_tracks")
         os.makedirs(output_dir, exist_ok=True)
 
-        for i, (canvas, label, download_btn, play_btn, reset_btn) in enumerate(
-            zip(
-                self.waveform_canvases,
-                self.track_labels,
-                self.download_buttons,
-                self.play_buttons,
-                self.reset_buttons,
-            )
-        ):
+        for label in self.track_labels:
+            if label.lower() not in separated_audio:
+                print(f"Warning: {label} not found in separated output")
+                continue
+            y_sep = separated_audio[label.lower()].cpu().numpy()
+            sr = 44100
+            time = np.linspace(0, len(y_sep) / sr, len(y_sep))
+            canvas_index = self.track_labels.index(label)
+            canvas = self.waveform_canvases[canvas_index]
             ax = canvas.figure.add_subplot(111)
             ax.clear()
             ax.set_facecolor("black")
-            ax.fill_between(time, y, color="deepskyblue", alpha=0.5)
-            ax.plot(time, y, color="cyan", lw=0.25, alpha=0.8)
+            ax.fill_between(time, y_sep, color="deepskyblue", alpha=0.5)
+            ax.plot(time, y_sep, color="cyan", lw=0.25, alpha=0.8)
             ax.set_xticks([])
             ax.set_yticks([])
             ax.set_frame_on(False)
@@ -216,10 +240,11 @@ class SecondWindow(QMainWindow):
             canvas.draw()
 
             output_filename = os.path.join(output_dir, f"{label.lower()}_separated.wav")
-            sf.write(output_filename, y, sr)  # Guardar el audio en un archivo
-            self.separated_files[label] = output_filename  # Guardar en el diccionario
-            download_btn.setEnabled(True)
-            reset_btn.setEnabled(True)
+            sf.write(output_filename, y_sep, sr)
+            self.separated_files[label] = output_filename
+
+            self.download_buttons[canvas_index].setEnabled(True)
+            self.reset_buttons[canvas_index].setEnabled(True)
             self.play_buttons[label].setEnabled(True)
 
     def download_file(self, label):
@@ -228,11 +253,8 @@ class SecondWindow(QMainWindow):
                 self, "Save File", self.separated_files[label], "Audio Files (*.wav)"
             )
             if save_path:
-                sf.write(
-                    save_path,
-                    librosa.load(self.separated_files[label], sr=None)[0],
-                    librosa.load(self.separated_files[label], sr=None)[1],
-                )
+                data, rate = librosa.load(self.separated_files[label], sr=None)
+                sf.write(save_path, data, rate)
 
     def new_instance(self):
         if self.main_window:
@@ -283,20 +305,14 @@ class SecondWindow(QMainWindow):
         if track_label not in self.players:
             audio_output = QAudioOutput()
             audio_output.setVolume(0.5)
-
             player = QMediaPlayer()
             player.setAudioOutput(audio_output)
-
-            # Guardamos ambos objetos en la instancia de la clase para que persistan
             self.players[track_label] = player
             self.audio_outputs[track_label] = audio_output
-
-            # Verificar si el archivo existe antes de cargarlo
             file_path = self.separated_files.get(track_label, "")
             if not os.path.exists(file_path):
-                print(f"Error: No se encontró el archivo {file_path}")
+                print(f"Error: File not found {file_path}")
                 return
-
             player.setSource(QUrl.fromLocalFile(file_path))
 
         player = self.players[track_label]
@@ -314,8 +330,7 @@ class SecondWindow(QMainWindow):
 
     def reset_track(self, track_label):
         if track_label in self.players:
-            player = self.players[track_label]
-            player.setPosition(0)
+            self.players[track_label].setPosition(0)
 
     def toggle_play_pause_main(self):
         if self.currently_playing:

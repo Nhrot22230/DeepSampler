@@ -4,8 +4,8 @@ from moviepy.editor import VideoFileClip
 from mutagen.wave import WAVE
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QVBoxLayout, QWidget
-from src.utils.gui.SecondWindow import SecondWindow
 from src.models import deep_sampler, scunet, u_net
+from src.utils.gui.SecondWindow import SecondWindow
 from src.utils.gui.widgets.drag_and_drop import DragDropWidget
 from src.utils.gui.widgets.toolbar import Toolbar
 
@@ -25,7 +25,7 @@ class MainApp(QMainWindow):
 
         self.selected_model = "UNet"
 
-        self.toolbar = Toolbar(self, self.selected_model)
+        self.toolbar = Toolbar(parent=self, selected_model=self.selected_model)
         self.toolbar.create_toolbar()
 
         central_widget = QWidget()

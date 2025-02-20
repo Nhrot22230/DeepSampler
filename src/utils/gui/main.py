@@ -1,5 +1,5 @@
-from src.utils.gui.MainApp import MainApp
 from PyQt6.QtWidgets import QApplication
+from src.utils.gui.MainApp import MainApp
 
 if __name__ == "__main__":
     import sys

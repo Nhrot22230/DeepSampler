@@ -34,6 +34,12 @@ class SecondWindow(QMainWindow):
         self.reset_icon = QIcon(os.path.join(scriptDir, "assets", "reset_icon.png"))
         self.extract_metadata()
         self.process_audio()
+        self.media_player_main = QMediaPlayer()
+        main_track_src =  os.path.join(os.path.dirname(os.path.realpath(__file__)), self.file_path)
+        self.media_player_main.setSource(QUrl.fromLocalFile(main_track_src))
+        self.audio_output_main = QAudioOutput()
+        self.audio_output_main.setVolume(0.5)
+        self.media_player_main.setAudioOutput(self.audio_output_main)
         self.initUI()
         self.setWindowTitle("DinoSampler")
         logo_path = os.path.join(scriptDir, "assets", "dinosampler_logo.png")
@@ -80,8 +86,28 @@ class SecondWindow(QMainWindow):
         textLayout.addWidget(self.track_label)
         textLayout.addWidget(self.duration_label)
         textLayout.addStretch()
+
+        main_controls_layout = QHBoxLayout()
+        self.play_main_button = QPushButton()
+        self.play_main_button.setIcon(self.play_icon)
+        self.play_main_button.setFixedSize(32, 32)
+        self.play_main_button.clicked.connect(lambda: self.toggle_play_pause_main())
+        self.play_main_button.setEnabled(True)
+        main_controls_layout.addWidget(self.play_main_button)
+
+        self.reset_main_button = QPushButton()
+        self.reset_main_button.setIcon(self.reset_icon)
+        self.reset_main_button.setFixedSize(32, 32)
+        self.reset_main_button.clicked.connect(lambda: self.reset_track_main())
+        self.reset_main_button.setEnabled(True)
+        main_controls_layout.addWidget(self.reset_main_button)
+
+        controls_layout_v = QVBoxLayout()
+        controls_layout_v.addStretch()
+        controls_layout_v.addLayout(main_controls_layout)
         infoLayout.addLayout(textLayout)
         infoLayout.addStretch()
+        infoLayout.addLayout(controls_layout_v)
         layout.addLayout(infoLayout)
 
         self.canvas = FigureCanvas(plt.figure(figsize=(6, 1)))
@@ -275,8 +301,27 @@ class SecondWindow(QMainWindow):
         else:
             player.play()
             play_btn.setIcon(self.pause_icon)
+            self.media_player_main.stop()
+            self.play_main_button.setIcon(self.play_icon)
+
 
     def reset_track(self, track_label):
         if track_label in self.players:
             player = self.players[track_label]
             player.setPosition(0)
+
+    def toggle_play_pause_main(self):
+        if self.currently_playing:
+            self.players[self.currently_playing].pause()
+            self.play_buttons[self.currently_playing].setIcon(self.play_icon)
+            self.currently_playing = None
+
+        if self.media_player_main.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            self.media_player_main.pause()
+            self.play_main_button.setIcon(self.play_icon)
+        else:
+            self.media_player_main.play()
+            self.play_main_button.setIcon(self.pause_icon)
+
+    def reset_track_main(self):
+        self.media_player_main.setPosition(0)

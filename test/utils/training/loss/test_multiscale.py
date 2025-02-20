@@ -6,7 +6,6 @@ from test.utils_test import (
 
 import pytest
 import torch
-
 from src.utils.training.loss import MultiScaleLoss
 
 

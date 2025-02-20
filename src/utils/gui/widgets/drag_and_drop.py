@@ -2,8 +2,7 @@ from moviepy.editor import VideoFileClip
 from mutagen.wave import WAVE
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent
-from PyQt6.QtWidgets import (QFileDialog, QLabel, QMessageBox, QVBoxLayout,
-                             QWidget)
+from PyQt6.QtWidgets import QFileDialog, QLabel, QMessageBox, QVBoxLayout, QWidget
 
 
 class DragDropWidget(QWidget):

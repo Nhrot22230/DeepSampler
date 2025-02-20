@@ -1,8 +1,16 @@
+import torch
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QAction, QActionGroup
-from PyQt6.QtWidgets import (QApplication, QMenu, QStyleFactory, QToolBar,
-                             QToolButton,QFileDialog, QMessageBox)
-import torch
+from PyQt6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QMenu,
+    QMessageBox,
+    QStyleFactory,
+    QToolBar,
+    QToolButton,
+)
+
 
 class Toolbar(QObject):
     def __init__(self, parent, selected_model):
@@ -61,7 +69,9 @@ class Toolbar(QObject):
         for model_name in ["UNet", "SCUNet", "DinoSampler"]:
             action = QAction(model_name, self.parent)
             action.setCheckable(True)
-            action.triggered.connect(lambda checked, name=model_name: self.select_model(name))
+            action.triggered.connect(
+                lambda checked, name=model_name: self.select_model(name)
+            )
             self.modelGroup.addAction(action)
             model_menu.addAction(action)
             if self.selected_model == model_name:
@@ -72,8 +82,6 @@ class Toolbar(QObject):
         model_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         model_button.setMenu(model_menu)
         toolbar.addWidget(model_button)
-
-
 
     def select_unet(self):
         self.selected_model = "UNet"
@@ -99,7 +107,7 @@ class Toolbar(QObject):
             self.parent,
             f"Select weights file for {model_name}",
             "",
-            "PyTorch Files (*.pth)"
+            "PyTorch Files (*.pth)",
         )
         if file_name:
             try:
@@ -108,15 +116,16 @@ class Toolbar(QObject):
                 # Actualizar los parámetros del modelo correspondiente en el diccionario.
                 self.parent.models[model_name].load_state_dict(state_dict)
                 QMessageBox.information(
-                    self.parent, "Success",
-                    f"Weights loaded successfully for {model_name}."
+                    self.parent,
+                    "Success",
+                    f"Weights loaded successfully for {model_name}.",
                 )
-            except Exception as e:
+            except Exception:
                 QMessageBox.critical(
-                    self.parent, "Error",
-                    f"Weights loaded successfully for {model_name}."
+                    self.parent,
+                    "Error",
+                    f"Weights loaded successfully for {model_name}.",
                 )
-
 
     def change_style(self, styleName):
         QApplication.setStyle(styleName)

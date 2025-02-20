@@ -1,11 +1,11 @@
 import torch.nn as nn
-from torch import Tensor
+import torch.nn.functional as F
 from src.models.components.spectral import (
-    SpectralEncoderBlock,
     SpectralDecoderBlock,
+    SpectralEncoderBlock,
     SpectrogramTransformer,
 )
-import torch.nn.functional as F
+from torch import Tensor
 
 
 class Spectrum(nn.Module):

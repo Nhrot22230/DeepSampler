@@ -5,13 +5,19 @@ import matplotlib.pyplot as plt
 import moviepy.editor as mp
 import numpy as np
 import soundfile as sf
-from matplotlib.backends.backend_qt5agg import \
-    FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
-from PyQt6.QtWidgets import (QFileDialog, QHBoxLayout, QLabel, QMainWindow,
-                             QPushButton, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 from widgets.toolbar import Toolbar
 
 
@@ -35,7 +41,9 @@ class SecondWindow(QMainWindow):
         self.extract_metadata()
         self.process_audio()
         self.media_player_main = QMediaPlayer()
-        main_track_src =  os.path.join(os.path.dirname(os.path.realpath(__file__)), self.file_path)
+        main_track_src = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), self.file_path
+        )
         self.media_player_main.setSource(QUrl.fromLocalFile(main_track_src))
         self.audio_output_main = QAudioOutput()
         self.audio_output_main.setVolume(0.5)
@@ -304,7 +312,6 @@ class SecondWindow(QMainWindow):
             self.media_player_main.stop()
             self.play_main_button.setIcon(self.play_icon)
 
-
     def reset_track(self, track_label):
         if track_label in self.players:
             player = self.players[track_label]
@@ -316,7 +323,10 @@ class SecondWindow(QMainWindow):
             self.play_buttons[self.currently_playing].setIcon(self.play_icon)
             self.currently_playing = None
 
-        if self.media_player_main.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+        if (
+            self.media_player_main.playbackState()
+            == QMediaPlayer.PlaybackState.PlayingState
+        ):
             self.media_player_main.pause()
             self.play_main_button.setIcon(self.play_icon)
         else:

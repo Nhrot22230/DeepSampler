@@ -1,21 +1,13 @@
-import sys
 import os
-
-# Agrega la carpeta 'src' al sys.path para que Python pueda encontrar 'models'
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-
-from models import deep_sampler, scunet, u_net
-
 
 from moviepy.editor import VideoFileClip
 from mutagen.wave import WAVE
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import (QFileDialog, QMainWindow, QMessageBox,
-                             QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QVBoxLayout, QWidget
 from SecondWindow import SecondWindow
+from src.models import deep_sampler, scunet, u_net
 from widgets.drag_and_drop import DragDropWidget
 from widgets.toolbar import Toolbar
-
 
 
 class MainApp(QMainWindow):
@@ -76,6 +68,6 @@ class MainApp(QMainWindow):
 
     def go_second_window(self, file):
         selected_model_instance = self.models[self.selected_model]
-        new_app = SecondWindow(file, self,selected_model_instance)
+        new_app = SecondWindow(file, self, selected_model_instance)
         new_app.show()
         self.close()

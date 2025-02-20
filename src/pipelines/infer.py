@@ -1,10 +1,13 @@
 from typing import Dict, List, Union
 
 import torch
-from tqdm import tqdm
 
-from src.utils.audio.processing import (chunk_waveform, i_mag_stft, load_audio,
-                                        mag_stft)
+from src.utils.audio.processing import (
+    chunk_waveform,
+    i_mag_stft,
+    load_audio,
+    mag_stft,
+)
 
 
 def infer_pipeline(
@@ -16,15 +19,14 @@ def infer_pipeline(
     n_fft: int = 2048,
     hop_length: int = 512,
     device: torch.device = torch.device("cpu"),
-    progress: bool = True,
 ) -> Dict[str, torch.Tensor]:
     """
     Inference pipeline for source separation.
 
     This function loads a mixture audio file, splits it into overlapping or non-overlapping chunks,
     computes the log-spectrogram of each chunk, processes each chunk through the model to obtain the
-    spectrograms for each source, converts the predicted spectrograms back to waveforms, and
-    reconstructs the complete signal by concatenating the chunks.
+    spectrograms for each source, converts the predicted spectrograms back to waveforms using the
+    inverse log-magnitude function and reconstructs the complete signal by concatenating the chunks.
 
     Args:
         model (torch.nn.Module): The source separation model for inference.
@@ -46,45 +48,28 @@ def infer_pipeline(
         mixture_waveform = load_audio(mixture, sample_rate)
     else:
         mixture_waveform = mixture
+    mixture_waveform = mixture_waveform.to(device)
     mixture_chunks = chunk_waveform(mixture_waveform, chunk_len, chunk_hop)
     instruments = ["vocals", "drums", "bass", "other"]
     separated_chunks: Dict[str, List[torch.Tensor]] = {inst: [] for inst in instruments}
 
     model.eval()
+    model.to(device)
 
-    if progress:
-        for chunk in tqdm(mixture_chunks, desc="Separating audio"):
-            chunk = chunk.to(device)
-            spec = mag_stft(chunk, n_fft, hop_length)
-            spec = spec.to(device)
-            spec = spec.unsqueeze(0).unsqueeze(0)
-            with torch.no_grad():
-                # Model output should have shape: [1, C, F, T]
-                pred = model(spec)
-                # Remove the batch dimension: now shape [C, F, T]
-                pred = pred.squeeze(0)
-            for i, inst in enumerate(instruments):
-                wav_chunk = i_mag_stft(pred[i], n_fft, hop_length)
-                separated_chunks[inst].append(wav_chunk)
-
-    else:
+    with torch.no_grad():
         for chunk in mixture_chunks:
-            chunk = chunk.to(device)
             spec = mag_stft(chunk, n_fft, hop_length)
-            spec = spec.to(device)
             spec = spec.unsqueeze(0).unsqueeze(0)
-            with torch.no_grad():
-                # Model output should have shape: [1, C, F, T]
-                pred = model(spec)
-                # Remove the batch dimension: now shape [C, F, T]
-                pred = pred.squeeze(0)
+            pred = model(spec)  # Expected shape: [1, C, F, T]
+            pred = pred.squeeze(0)  # Now shape: [C, F, T]
             for i, inst in enumerate(instruments):
                 wav_chunk = i_mag_stft(pred[i], n_fft, hop_length)
                 separated_chunks[inst].append(wav_chunk)
+                del wav_chunk
+            del spec, pred
 
     separated_audio: Dict[str, torch.Tensor] = {}
     for inst in instruments:
-        reconstructed = torch.cat(separated_chunks[inst])
-        separated_audio[inst] = reconstructed
+        separated_audio[inst] = torch.cat(separated_chunks[inst], dim=0)
 
     return separated_audio

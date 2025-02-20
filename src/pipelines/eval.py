@@ -49,6 +49,7 @@ def eval_pipeline(
     all_scores: Dict[str, List[float]] = {inst: [] for inst in instruments}
 
     audio_folders: List[str] = os.listdir(dataset_path)
+    si_sdr_metric = ScaleInvariantSignalDistortionRatio().to(device)
 
     for sample in tqdm(audio_folders, desc="Evaluating"):
         mixture_path = os.path.join(dataset_path, sample, "mixture.wav")
@@ -70,9 +71,10 @@ def eval_pipeline(
             min_len = min(len(gt_audio), len(pred_audio))
             gt_audio = gt_audio[:min_len]
             pred_audio = pred_audio[:min_len]
-            si_sdr_metric = ScaleInvariantSignalDistortionRatio().to(device)
             score = si_sdr_metric(pred_audio, gt_audio)
             all_scores[inst].append(score.item())
+
+        del separated_audio, gt_audio, pred_audio, score
 
     avg_scores = {
         inst: np.mean(scores) if scores else 0.0 for inst, scores in all_scores.items()

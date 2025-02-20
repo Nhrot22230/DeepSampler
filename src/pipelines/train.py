@@ -99,14 +99,11 @@ def train_pipeline(
         Training history dictionary with metrics
     """
     history = {
-        "epoch": [],
         "loss": [],
         "learning_rate": [],
-        "epoch_time": [],
-        "total_time": [],
     }
-
-    os.makedirs(checkpoint_dir, exist_ok=True)
+    if checkpoint_every is not None:
+        os.makedirs(checkpoint_dir, exist_ok=True)
     start_time = time.time()
 
     with tqdm(range(1, epochs + 1), unit="epoch") as epoch_iter:
@@ -130,11 +127,8 @@ def train_pipeline(
 
             # Record metrics
             epoch_time = time.time() - epoch_start
-            history["epoch"].append(epoch)
             history["loss"].append(avg_loss)
             history["learning_rate"].append(current_lr)
-            history["epoch_time"].append(epoch_time)
-            history["total_time"].append(time.time() - start_time)
 
             # Update progress bar
             epoch_iter.set_postfix(

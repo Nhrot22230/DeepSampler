@@ -51,24 +51,29 @@ def mag_stft(
     n_fft: int = 2048,
     hop_length: int = 512,
 ) -> torch.Tensor:
-    """Compute log magnitude spectrogram.
-    Args:
-        waveform: (channels, samples) tensor
-        n_fft: FFT size
-        hop_length: Hop size between frames
-    Returns:
-        spectrogram: (..., freq, time) tensor
     """
-    window = torch.hann_window(n_fft, device=waveform.device)
-    stft = torch.stft(
-        waveform,
+    Compute the log-magnitude spectrogram of a waveform.
+
+    Args:
+        waveform (torch.Tensor): Input waveform tensor of shape (channels, samples).
+        n_fft (int): FFT size.
+        hop_length (int): Hop size between frames.
+        return_phase (bool): If True, returns a tuple (log_magnitude, phase).
+
+    Returns:
+        If return_phase is False:
+            torch.Tensor: Log-magnitude spectrogram of shape (..., freq, time).
+        If return_phase is True:
+            Tuple[torch.Tensor, torch.Tensor]: A tuple where the first element is the log-magnitude
+            spectrogram and the second element is the phase spectrogram.
+    """
+    stft = torchaudio.transforms.Spectrogram(
         n_fft=n_fft,
         hop_length=hop_length,
-        window=window,
-        return_complex=True,
+        window_fn=lambda x: torch.hann_window(x, device=waveform.device),
     )
-
-    return torch.abs(stft)
+    magnitude = stft(waveform)
+    return magnitude
 
 
 def i_mag_stft(
@@ -77,22 +82,40 @@ def i_mag_stft(
     hop_length: int = 512,
 ) -> torch.Tensor:
     """
-    Compute the inverse of a log-magnitude spectrogram.
+    Reconstruct the waveform from a log-magnitude spectrogram and its phase.
+
+    This function inverts the log1p operation (using expm1) to recover the magnitude,
+    then combines it with the provided phase to form a complex spectrogram before computing
+    the inverse STFT.
+
     Args:
-        spectrogram: (..., freq, time) tensor containing log-magnitude values.
-        n_fft: FFT size.
-        hop_length: Hop size between frames.
+        log_magnitude (torch.Tensor): Log-magnitude spectrogram of shape (..., freq, time).
+        phase (torch.Tensor): Phase spectrogram of shape (..., freq, time).
+        n_fft (int): FFT size.
+        hop_length (int): Hop size between frames.
+
     Returns:
-        waveform: Reconstructed waveform (channels, samples) tensor.
+        torch.Tensor: Reconstructed waveform tensor (channels, samples), normalized to [-1, 1].
     """
-    window = torch.hann_window(n_fft, device=spectrogram.device)
-
-    # Reconstruct a complex spectrogram with zero phase.
-    complex_spec = torch.complex(spectrogram, torch.zeros_like(spectrogram))
-    length = spectrogram.shape[-1] * hop_length
-
-    waveform = torch.istft(
-        complex_spec, n_fft=n_fft, hop_length=hop_length, window=window, length=length
+    gm = torchaudio.transforms.GriffinLim(
+        n_fft=n_fft,
+        hop_length=hop_length,
+        window_fn=lambda x: torch.hann_window(x, device=spectrogram.device),
     )
 
-    return waveform.float()
+    return gm(spectrogram)
+
+
+def wiener_filter(
+    mix_spec: torch.Tensor, target_spec: torch.Tensor, eps: float = 1e-8
+) -> torch.Tensor:
+    """Wiener filtering using estimated source spectrogram.
+
+    Args:
+        mix_spec: (..., freq, time) complex mixture spectrogram
+        target_spec: (..., freq, time) estimated target magnitude
+    Returns:
+        filtered_spec: (..., freq, time) complex filtered spectrogram
+    """
+    mask = target_spec / (torch.abs(mix_spec) + eps)
+    return mix_spec * mask

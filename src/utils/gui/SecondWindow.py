@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from widgets.toolbar import Toolbar
+from src.utils.gui.widgets.toolbar import Toolbar
 
 
 class SecondWindow(QMainWindow):

@@ -4,10 +4,10 @@ from moviepy.editor import VideoFileClip
 from mutagen.wave import WAVE
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QVBoxLayout, QWidget
-from SecondWindow import SecondWindow
+from src.utils.gui.SecondWindow import SecondWindow
 from src.models import deep_sampler, scunet, u_net
-from widgets.drag_and_drop import DragDropWidget
-from widgets.toolbar import Toolbar
+from src.utils.gui.widgets.drag_and_drop import DragDropWidget
+from src.utils.gui.widgets.toolbar import Toolbar
 
 
 class MainApp(QMainWindow):

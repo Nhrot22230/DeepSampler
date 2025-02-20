@@ -186,7 +186,9 @@ def musdb_pipeline(
         data_files = sorted(save_dir.glob("*.pt"))
         if max_chunks:
             data_files = data_files[:max_chunks]
-        return MUSDBDataset(data=data_files, n_fft=n_fft, hop_length=hop_length)
+        return MUSDBDataset(
+            data=[str(f) for f in data_files], n_fft=n_fft, hop_length=hop_length
+        )
 
     np.random.shuffle(all_chunks)
     return MUSDBDataset(data=all_chunks, n_fft=n_fft, hop_length=hop_length)

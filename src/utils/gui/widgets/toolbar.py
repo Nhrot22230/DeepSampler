@@ -1,8 +1,8 @@
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QAction, QActionGroup
 from PyQt6.QtWidgets import (QApplication, QMenu, QStyleFactory, QToolBar,
-                             QToolButton)
-
+                             QToolButton,QFileDialog, QMessageBox)
+import torch
 
 class Toolbar(QObject):
     def __init__(self, parent, selected_model):
@@ -54,24 +54,14 @@ class Toolbar(QObject):
 
     def create_model_menu(self, toolbar):
         model_menu = QMenu("Load Model", self.parent)
-
-        # Grupo de acciones para los modelos
         self.modelGroup = QActionGroup(self.parent)
         self.modelGroup.setExclusive(True)
 
-        # modelos
-        models = {
-            "UNet": self.select_unet,
-            "SCUNet": self.select_scunet,
-            "DinoSampler": self.select_dino_sampler,
-        }
-
-        for model_name, callback in models.items():
+        # Lista de nombres de modelos
+        for model_name in ["UNet", "SCUNet", "DinoSampler"]:
             action = QAction(model_name, self.parent)
             action.setCheckable(True)
-            action.triggered.connect(
-                lambda checked, name=model_name: self.select_model(name)
-            )
+            action.triggered.connect(lambda checked, name=model_name: self.select_model(name))
             self.modelGroup.addAction(action)
             model_menu.addAction(action)
             if self.selected_model == model_name:
@@ -82,6 +72,8 @@ class Toolbar(QObject):
         model_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         model_button.setMenu(model_menu)
         toolbar.addWidget(model_button)
+
+
 
     def select_unet(self):
         self.selected_model = "UNet"
@@ -96,9 +88,35 @@ class Toolbar(QObject):
         print("Selected model: DinoSampler")
 
     def select_model(self, model_name):
+
+        # Actualiza la selección del modelo
         self.selected_model = model_name
-        self.parent.selected_model = model_name  # Guardar en MainApp
+        self.parent.selected_model = model_name
         print(f"Selected model: {model_name}")
+
+        # Abre el diálogo para seleccionar el archivo de pesos (.pth)
+        file_name, _ = QFileDialog.getOpenFileName(
+            self.parent,
+            f"Select weights file for {model_name}",
+            "",
+            "PyTorch Files (*.pth)"
+        )
+        if file_name:
+            try:
+                # Cargar el state_dict (diccionario de parámetros) desde el archivo
+                state_dict = torch.load(file_name, map_location=torch.device("cpu"))
+                # Actualizar los parámetros del modelo correspondiente en el diccionario.
+                self.parent.models[model_name].load_state_dict(state_dict)
+                QMessageBox.information(
+                    self.parent, "Success",
+                    f"Weights loaded successfully for {model_name}."
+                )
+            except Exception as e:
+                QMessageBox.critical(
+                    self.parent, "Error",
+                    f"Weights loaded successfully for {model_name}."
+                )
+
 
     def change_style(self, styleName):
         QApplication.setStyle(styleName)

@@ -1,4 +1,11 @@
+import sys
 import os
+
+# Agrega la carpeta 'src' al sys.path para que Python pueda encontrar 'models'
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
+from models import deep_sampler, scunet, u_net
+
 
 from moviepy.editor import VideoFileClip
 from mutagen.wave import WAVE
@@ -10,16 +17,21 @@ from widgets.drag_and_drop import DragDropWidget
 from widgets.toolbar import Toolbar
 
 
+
 class MainApp(QMainWindow):
     def __init__(self):
         super(MainApp, self).__init__()
-
+        self.models = {
+            "DeepSampler": deep_sampler.DeepSampler(),
+            "SCUNet": scunet.SCUNet(),
+            "UNet": u_net.SimpleUNet(),
+        }
         self.setWindowTitle("DinoSampler")
         scriptDir = os.path.dirname(os.path.realpath(__file__))
         logo_path = os.path.join(scriptDir, "assets", "dinosampler_logo.png")
         self.setWindowIcon(QIcon(logo_path))
 
-        self.selected_model = None
+        self.selected_model = "UNet"
 
         self.toolbar = Toolbar(self, self.selected_model)
         self.toolbar.create_toolbar()
@@ -63,6 +75,7 @@ class MainApp(QMainWindow):
         return duration <= 300
 
     def go_second_window(self, file):
-        new_app = SecondWindow(file, self, self.selected_model)
+        selected_model_instance = self.models[self.selected_model]
+        new_app = SecondWindow(file, self,selected_model_instance)
         new_app.show()
         self.close()

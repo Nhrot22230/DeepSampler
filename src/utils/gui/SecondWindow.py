@@ -1,12 +1,12 @@
 # SecondWindow.py
 import os
+
 import librosa
 import matplotlib.pyplot as plt
 import moviepy.editor as mp
 import numpy as np
 import soundfile as sf
 import torch
-
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QIcon, QPixmap

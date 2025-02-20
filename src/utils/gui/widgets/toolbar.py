@@ -1,6 +1,7 @@
 # Toolbar.py
-import torch
 import traceback
+
+import torch
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QAction, QActionGroup
 from PyQt6.QtWidgets import (

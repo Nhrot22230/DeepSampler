@@ -1,0 +1,35 @@
+# experiment.yaml
+paths:
+  musdb_train: "data/musdb18hq/train"
+  musdb_test: "data/musdb18hq/test"
+  checkpoints: "experiments/checkpoints"
+  results: "experiments/results"
+  logs: "experiments/logs"
+
+audio_params:
+  sr: 44100
+  n_fft: 4096
+  hop_length: 512
+  chunk_duration: 2
+  overlap: 0
+
+model_params:
+  n_sources: 4
+  base_channels: 128
+  depth: 4
+  drop_rate: 0.1
+  transformer_heads: 4
+  transformer_layers: 2
+
+dataset_params:
+  isolated_max_samples: null  # Set to integer for limited samples
+  mixed_max_samples: null
+
+training_params:
+  loss_weights: [1.0, 1.0, 1.0, 1.0]
+  isolated_epochs: 5
+  isolated_lr: 3e-3
+  mixed_epochs: 100
+  mixed_lr: 1e-3
+  mixed_batch_size: 8
+  checkpoint_interval: 10

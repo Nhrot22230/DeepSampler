@@ -11,19 +11,33 @@ Esta tecnología tiene aplicaciones amplias y transformadoras, desde sistemas de
 La separación de fuentes de audio es una disciplina avanzada del procesamiento de señales que tiene como objetivo estimar y extraer señales sonoras individuales a partir de mezclas complejas. En esencia, se busca descomponer grabaciones que contienen múltiples fuentes sonoras (como voces, instrumentos musicales o ruidos ambientales) en sus componentes originales, permitiendo un análisis y manipulación precisos.
 
 Entre los enfoques más utilizados se encuentran:
+
 - **Factorización No Negativa de Matrices (NMF)**
 - **Redes Neuronales Profundas (DNN)**
 - **Análisis de Componentes Esparsos (SCA)**
 
 ## Planteamiento del Problema
 
-A pesar de la existencia de diversos modelos y trabajos enfocados en la separación de fuentes de audio, hasta la fecha no se ha logrado implementar una separación en tiempo real. Esto representa una oportunidad significativa para mejorar y revolucionar múltiples campos:
+En la industria musical y en la producción de audio, existe una necesidad recurrente de trabajar con pistas de sonido individuales, es decir, de poder aislar elementos específicos de una canción, como la voz o los instrumentos, para distintos fines. Sin embargo, separar estos componentes de una pista de audio completa no es una tarea sencilla y, hasta hace poco, los métodos tradicionales eran manuales, tardados y no siempre efectivos.
 
-- **Vehículos Autónomos:** Permitiendo el reconocimiento de sonidos críticos, como una sirena de policía.
-- **Transcripción de Voz a Texto:** Mejorando la precisión al separar la voz del ruido ambiental.
-- **Industria Musical:** Facilitando a músicos y equipos de sonido el aislamiento de instrumentos específicos para una edición y análisis más detallados.
+Diferentes profesionales y entusiastas de la música enfrentan dificultades debido a la falta de herramientas accesibles y eficientes para este propósito. Algunas de las principales aplicaciones donde la separación de fuentes musicales es clave incluyen:
 
-El principal desafío identificado es la falta de un modelo capaz de realizar la separación de fuentes de audio en tiempo real, abriendo la puerta a aplicaciones innovadoras en diversos sectores.
+**Sampleo de Voces para Producción Musical**:
+En la música electrónica, los productores suelen necesitar fragmentos de voces aisladas (sin la música de fondo) para crear nuevas composiciones. Tradicionalmente, esto se lograba con técnicas complejas, como invertir la fase de una pista instrumental para "cancelar" el fondo musical y quedarse solo con la voz. Sin embargo, este método requiere mucho tiempo y mayor expertiz.
+
+**Transcripción de Música**:
+Cuando un músico necesita escribir la partitura de una canción, es común que tenga dificultades para distinguir ciertos sonidos, especialmente los de frecuencias graves, como el bajo o el bombo de la batería. Al separar los elementos del audio en pistas individuales, la transcripción se vuelve más clara y precisa.
+
+**Creación de Pistas de Karaoke**:
+Para generar versiones instrumentales de canciones (karaoke), es necesario eliminar la voz principal sin afectar el acompañamiento musical. Un sistema de separación eficiente facilita este proceso sin comprometer necesariamente la calidad del sonido.
+
+**Reemplazo de Voces con Inteligencia Artificial**:
+En la industria de la producción musical, ha surgido un mercado donde se "imita" la voz de artistas famosos para interpretar canciones que originalmente no grabaron. Para lograrlo, primero es necesario extraer la voz original de una canción y luego procesarla con inteligencia artificial antes de integrarla nuevamente en la mezcla.
+
+**Uso en Tecnología Vocaloid y Síntesis de Voz**:
+La síntesis de voz, como la utilizada en Vocaloid, se beneficia de la separación de fuentes para comprender mejor la estructura de las voces reales y poder generar nuevas interpretaciones con voces sintéticas.
+
+A pesar de la creciente necesidad de este tipo de herramientas, muchas de las soluciones actuales requieren conocimientos avanzados en producción musical o no son accesibles para el público general. Por ello, este proyecto busca desarrollar una aplicación intuitiva y eficiente basada en modelos de inteligencia artificial para la separación de fuentes musicales, facilitando su uso tanto para profesionales como para aficionados.
 
 ## Propuesta de Solución
 
@@ -34,17 +48,20 @@ En este proyecto proponemos **DeepSampler**, una novedosa arquitectura basada en
 #### Detalles de la Arquitectura
 
 - **Encoder:**
+
   - Utilización de convoluciones 1D para capturar representaciones tanto espectrales como temporales.
   - Downsampling progresivo mediante convoluciones con stride.
   - Normalización de capas y uso de activaciones no lineales (ReLU/Leaky ReLU).
 
 - **Espacio Latente con Transformer:**
+
   - Sustitución de módulos LSTM tradicionales por un Transformer avanzado, específicamente la variante **BS-RoFormer**.
   - División en subbandas que permite un procesamiento jerárquico de la información espectral.
   - Aplicación de Multi-Head Self-Attention tanto a nivel de banda (Time-Transformer) como entre bandas (Subband-Transformer).
   - Implementación de Rotary Position Embeddings (RoPE) para mejorar la representación de las relaciones posicionales.
 
 - **Decoder:**
+
   - Uso de convoluciones transpuestas para realizar el upsampling progresivo.
   - Incorporación de conexiones de salto (skip connections) para preservar detalles espectrales importantes.
   - Generación de una máscara de magnitud para cada fuente de audio que permite una reconstrucción precisa.
@@ -132,6 +149,7 @@ DeepSampler/
 
 - **data/**
   Organiza tus datos en subcarpetas:
+
   - **raw/**: Datos originales sin modificar.
   - **processed/**: Datos procesados y listos para el entrenamiento.
   - **external/**: Datos provenientes de fuentes externas o de terceros.
@@ -147,6 +165,7 @@ DeepSampler/
 
 - **src/**
   Alberga el código fuente principal del proyecto, organizado en módulos que se encargan de:
+
   - **data/**: Manejo de datasets y transformaciones.
   - **models/**: Definición de arquitecturas y modelos.
   - **pipelines/**: Integración de datos, modelo y procesos de entrenamiento en un flujo de trabajo completo.
@@ -168,7 +187,7 @@ DeepSampler/
 ### **Aplicaciones y Contribuciones**
 
 La implementación de DeepSampler promete abrir nuevas posibilidades en:
+
 - **Sistemas de Seguridad y Vehículos Autónomos:** Reconocimiento de sonidos críticos en tiempo real.
 - **Asistentes de Voz y Transcripción:** Mejora en la separación y procesamiento de la voz en entornos ruidosos.
 - **Industria Musical:** Aislamiento y manipulación de instrumentos en mezclas complejas.
-

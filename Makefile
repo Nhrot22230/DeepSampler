@@ -18,17 +18,14 @@ BLUE   := \033[1;34m
 RED    := \033[1;31m
 NC     := \033[0m
 
-.PHONY: help init install freeze pipe-data pipe-train pipe-eval pipe-infer test format clean clean-data clean-all
+.PHONY: help init install freeze test format clean clean-data clean-all pipe-train
 
 PYTHON ?= python3
 PIP    ?= pip3
 
 SETUP_SCRIPT      := setup.py
 SRC_DIR           := src
-PIPELINE_DATA     := $(SRC_DIR)/pipelines/data.py
-PIPELINE_TRAIN    := $(SRC_DIR)/pipelines/train.py
-PIPELINE_INFER    := $(SRC_DIR)/pipelines/inference.py
-PIPELINE_EVAL     := $(SRC_DIR)/pipelines/eval.py
+PIPELINE_TRAIN    := $(SRC_DIR)/pipelines/exp.py
 TESTS_DIR         := test
 REQUIREMENTS_FILE := requirements.txt
 
@@ -76,29 +73,13 @@ freeze:
 	$(PIP) freeze > $(REQUIREMENTS_FILE)
 
 # -------------------------------------------------------------------------------
-# Pipelines
+# Run Training Pipeline
 # -------------------------------------------------------------------------------
-pipe-data:
-	@echo -e "$(GREEN)Ejecutando pipeline de data...$(NC)"
-	@rm -rf data/processed/*
-	@mkdir -p data/processed
-	$(PYTHON) $(PIPELINE_DATA) $(ARGS)
-	@echo -e "$(GREEN)Pipeline de data completado.$(NC)"
 
 pipe-train:
 	@echo -e "$(GREEN)Ejecutando pipeline de entrenamiento...$(NC)"
-	$(PYTHON) $(PIPELINE_TRAIN)
+	$(PYTHON) $(PIPELINE_TRAIN) $(ARGS)
 	@echo -e "$(GREEN)Pipeline de entrenamiento completado.$(NC)"
-
-pipe-eval:
-	@echo -e "$(GREEN)Ejecutando pipeline de evaluación...$(NC)"
-	$(PYTHON) $(PIPELINE_EVAL)
-	@echo -e "$(GREEN)Pipeline de evaluación completado.$(NC)"
-
-pipe-infer:
-	@echo -e "$(GREEN)Ejecutando pipeline de inferencia...$(NC)"
-	$(PYTHON) $(PIPELINE_INFER)
-	@echo -e "$(GREEN)Pipeline de inferencia completado.$(NC)"
 
 # -------------------------------------------------------------------------------
 # Testing y formateo

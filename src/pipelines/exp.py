@@ -74,7 +74,7 @@ def training_experiment(config):
                 model=model,
                 criterion=MultiSourceLoss(weights=train_params["loss_weights"]),
                 optimizer=torch.optim.Adam(
-                    model.parameters(), lr=train_params["isolated_lr"]
+                    model.parameters(), lr=float(train_params["isolated_lr"])
                 ),
                 dataloader=isolated_loader,
                 epochs=train_params["isolated_epochs"],
@@ -100,7 +100,7 @@ def training_experiment(config):
             model=model,
             criterion=MultiSourceLoss(weights=train_params["loss_weights"]),
             optimizer=torch.optim.AdamW(
-                model.parameters(), lr=train_params["mixed_lr"]
+                model.parameters(), lr=float(train_params["mixed_lr"])
             ),
             dataloader=train_loader,
             epochs=train_params["mixed_epochs"],
@@ -136,9 +136,24 @@ def main():
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
 
-    # Set up paths
-    project_root = Path(__file__).resolve().parents[1]
-    config["paths"] = {k: str(project_root / v) for k, v in config["paths"].items()}
+    # create directories for checkpoints logs and results
+    Path(config["paths"]["checkpoints"]).mkdir(parents=True, exist_ok=True)
+    Path(config["paths"]["logs"]).mkdir(parents=True, exist_ok=True)
+    Path(config["paths"]["results"]).mkdir(parents=True, exist_ok=True)
+
+    # verify if data directory exists and is not empty
+    if not Path(config["paths"]["musdb_train"]).exists() or not list(
+        Path(config["paths"]["musdb_train"]).glob("*")
+    ):
+        raise FileNotFoundError(
+            f"Data directory {config['paths']['musdb_train']} does not exist or is empty"
+        )
+    if not Path(config["paths"]["musdb_test"]).exists() or not list(
+        Path(config["paths"]["musdb_test"]).glob("*")
+    ):
+        raise FileNotFoundError(
+            f"Data directory {config['paths']['musdb_test']} does not exist or is empty"
+        )
 
     training_experiment(config)
 

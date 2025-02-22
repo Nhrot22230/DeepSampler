@@ -1,14 +1,15 @@
 import argparse
-import yaml
 from pathlib import Path
-import torch
-from torch.utils.data import DataLoader
+
 import matplotlib.pyplot as plt
+import torch
+import yaml
 from src.models import DeepSampler
 from src.pipelines.data import musdb_pipeline
 from src.pipelines.train import train_pipeline
-from src.utils.train.losses import MultiSourceLoss
 from src.utils.data.dataset import MUSDBDataset
+from src.utils.train.losses import MultiSourceLoss
+from torch.utils.data import DataLoader
 
 
 def training_experiment(config):

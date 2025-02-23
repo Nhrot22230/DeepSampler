@@ -10,19 +10,35 @@ from src.pipelines.train import train_pipeline
 from src.utils.data.dataset import MUSDBDataset
 from src.utils.train.losses import MultiSourceLoss
 from torch.utils.data import DataLoader
+from pprint import pprint
 
 
 def training_experiment(config):
-    print("Starting training experiment")
-    print(f"Experiment config: {config}")
-    print("Device setup:")
-    print(f"Device: {'cuda' if torch.cuda.is_available() else 'cpu'}")
-    print(f"Device count: {torch.cuda.device_count()}")
-    if torch.cuda.is_available():
-        print(f"Device name: {torch.cuda.get_device_name(0)}")
-        print(
-            f"Device memory: {torch.cuda.get_device_properties(0).total_memory / 1e9} GB"
-        )
+    # Decorative header for experiment start
+    print("\n" + "=" * 60)
+    print("🚀  STARTING TRAINING EXPERIMENT  🚀".center(60))
+    print("=" * 60 + "\n")
+
+    # Print the experiment configuration using pprint with decorations
+    print("✨  EXPERIMENT CONFIG  ✨".center(60))
+    pprint(config)
+    print("\n" + "-" * 60)
+
+    # Decorative device setup information
+    print("🔧  DEVICE SETUP  🔧".center(60))
+    print("-" * 60)
+    device_type = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"{'Device:':20} {device_type}")
+    device_count = torch.cuda.device_count()
+    print(f"{'Device count:':20} {device_count}")
+    if torch.cuda.is_available() and device_count > 0:
+        device_name = torch.cuda.get_device_name(0)
+        device_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
+        print(f"{'Device name:':20} {device_name}")
+        print(f"{'Device memory:':20} {device_memory:.2f} GB")
+    print("-" * 60)
+
+    # Calculate and print the spectrogram shape with decoration
     spectrogram_shape = (
         config["audio_params"]["n_fft"] // 2 + 1,
         config["audio_params"]["chunk_duration"]
@@ -33,22 +49,15 @@ def training_experiment(config):
     print(
         f"Calculated Spectrogram shape: {spectrogram_shape[0]} x {spectrogram_shape[1]}"
     )
+    print("\n" + "=" * 60 + "\n")
 
     """Main training experiment function with configurable parameters"""
     instruments = ["vocals", "drums", "bass", "other"]
 
     # Device setup
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(device_type)
 
-    # Audio parameters
-    audio_params = config["audio_params"]
-    SR = audio_params["sr"]
-    NFFT = audio_params["n_fft"]
-    HOP = audio_params["hop_length"]
-    CHUNK_DUR = audio_params["chunk_duration"]
-    OVERLAP = audio_params["overlap"]
-
-    # Model parameters
+    # Model parameters and instantiation
     model_params = config["model_params"]
     model = DeepSampler(
         output_channels=model_params["n_sources"],
@@ -60,11 +69,19 @@ def training_experiment(config):
     )
 
     # Enable multi-GPU training if multiple GPUs are available.
-    if torch.cuda.device_count() > 1:
-        device_ids = list(range(torch.cuda.device_count()))
+    if device_count > 1:
+        device_ids = list(range(device_count))
         print(f"Using GPUs: {device_ids} for training")
         model = torch.nn.DataParallel(model, device_ids=device_ids)
     model.to(device)
+
+    # Audio parameters
+    audio_params = config["audio_params"]
+    SR = audio_params["sr"]
+    NFFT = audio_params["n_fft"]
+    HOP = audio_params["hop_length"]
+    CHUNK_DUR = audio_params["chunk_duration"]
+    OVERLAP = audio_params["overlap"]
 
     # Dataset parameters
     dataset_params = config["dataset_params"]

@@ -14,9 +14,9 @@ audio_params:
   overlap: 0
 
 model_params:
-  n_sources: 4
+  n_sources: 4 # NOT MODIFY
   base_channels: 16
-  depth: 4
+  depth: 4 # MODIFY CAREFULLY
   drop_rate: 0.1
   transformer_heads: 4
   transformer_layers: 2

@@ -59,11 +59,11 @@ def training_experiment(config):
         transformer_layers=model_params["transformer_layers"],
     )
 
-    # Enable multi-GPU training if multiple GPUs are available
+    # Enable multi-GPU training if multiple GPUs are available.
     if torch.cuda.device_count() > 1:
-        print(f"Using {torch.cuda.device_count()} GPUs for training")
-        model = torch.nn.DataParallel(model)
-
+        device_ids = list(range(torch.cuda.device_count()))
+        print(f"Using GPUs: {device_ids} for training")
+        model = torch.nn.DataParallel(model, device_ids=device_ids)
     model.to(device)
 
     # Dataset parameters

@@ -6,7 +6,7 @@ from test.utils_test import (
 
 import pytest
 import torch
-from utils.train.losses import MultiSourceLoss
+from src.utils.train.losses import MultiSourceLoss
 
 
 def test_unbatched_input_processing():

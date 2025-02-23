@@ -61,7 +61,6 @@ def train_one_epoch(
                 loss=f"{loss.item():.4f}",
                 lr=f"{current_lr:.1e}",
                 device=str(device),
-                gn="|",  # Simple gradient norm indicator
             )
 
     return total_loss / len(dataloader), current_lr

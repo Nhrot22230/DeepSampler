@@ -1,12 +1,92 @@
 import os
-from typing import Dict, List, Tuple
-
 import numpy as np
 import torch
+from typing import Dict, List, Tuple
+from tqdm.auto import tqdm
+from torchmetrics.functional.audio import (
+    scale_invariant_signal_distortion_ratio,
+    scale_invariant_signal_noise_ratio,
+    signal_distortion_ratio,
+    signal_noise_ratio,
+)
 from src.pipelines.infer import infer_pipeline
 from src.utils.audio.processing import load_audio
-from torchmetrics.audio import ScaleInvariantSignalDistortionRatio
-from tqdm import tqdm
+
+METRICS = {
+    "si_sdr": scale_invariant_signal_distortion_ratio,
+    "si_snr": scale_invariant_signal_noise_ratio,
+    "sdr": signal_distortion_ratio,
+    "snr": signal_noise_ratio,
+}
+
+
+def eval_one_file(
+    model: torch.nn.Module,
+    sample_path: str,
+    instruments: List[str],
+    sample_rate: int,
+    chunk_seconds: float,
+    overlap: float,
+    n_fft: int,
+    hop_length: int,
+    device: torch.device,
+) -> Dict[str, Dict[str, float]]:
+    """Evaluate separation quality for a single audio sample with multiple metrics.
+
+    Args:
+        model: Separation model to evaluate
+        sample_path: Path to directory containing mixture and sources
+        instruments: List of source instruments to evaluate
+        sample_rate: Audio sampling rate
+        chunk_seconds: Inference chunk duration
+        overlap: Chunk overlap ratio
+        n_fft: STFT window size
+        hop_length: STFT hop size
+        device: Computation device
+
+    Returns:
+        Dictionary with metrics for each instrument
+    """
+    mixture_path = os.path.join(sample_path, "mixture.wav")
+
+    # Run inference with memory optimization
+    with torch.inference_mode(), torch.amp.autocast(device.type):
+        separated = infer_pipeline(
+            model=model,
+            mixture=mixture_path,
+            sample_rate=sample_rate,
+            chunk_seconds=chunk_seconds,
+            overlap=overlap,
+            n_fft=n_fft,
+            hop_length=hop_length,
+            device=device,
+        )
+
+    metrics = {}
+    for inst in instruments:
+        gt_path = os.path.join(sample_path, f"{inst}.wav")
+
+        # Load with memory-mapped I/O for large files
+        gt_audio = load_audio(gt_path, sample_rate, mmap=True).to(device)
+        pred_audio = separated[inst].to(device, non_blocking=True)
+
+        # Align lengths using non-copy slicing
+        min_len = min(gt_audio.shape[-1], pred_audio.shape[-1])
+        gt_audio = gt_audio[..., :min_len]
+        pred_audio = pred_audio[..., :min_len]
+
+        # Compute all metrics in single forward pass
+        inst_metrics = {}
+        for name, metric_fn in METRICS.items():
+            try:
+                inst_metrics[name] = metric_fn(pred_audio, gt_audio).item()
+            except RuntimeError as e:
+                print(f"Error computing {name} for {inst}: {str(e)}")
+                inst_metrics[name] = float("nan")
+
+        metrics[inst] = inst_metrics
+
+    return metrics
 
 
 def eval_pipeline(
@@ -18,64 +98,69 @@ def eval_pipeline(
     n_fft: int = 2048,
     hop_length: int = 512,
     device: torch.device = torch.device("cpu"),
-) -> Tuple[Dict[str, float], Dict[str, List[float]]]:
-    """
-    Pipeline de evaluación que:
-      - Separa la señal de mezcla utilizando el infer_pipeline.
-      - Calcula el SI‑SDR entre las señales separadas y las señales de referencia (ground truth)
-        para cada fuente.
-
-    Se espera que cada muestra en el DataLoader sea un diccionario con las claves:
-        - "mixture": Ruta al archivo mixture.wav.
-        - "vocals", "drums", "bass", "other": Rutas a los archivos de ground truth para cada fuente.
+) -> Tuple[Dict[str, Dict[str, float]], Dict[str, Dict[str, List[float]]]]:
+    """Optimized evaluation pipeline with multi-metric tracking and memory management.
 
     Args:
-        model (torch.nn.Module): Modelo de separación.
-        musdb_path (str): Ruta al dataset MUSDB18.
-        sample_rate (int, optional): Frecuencia de muestreo. Defaults a 44100.
-        chunk_seconds (float, optional): Duración de cada chunk en segundos. Defaults a 2.
-        overlap (float, optional): Fracción de solapamiento entre chunks (0.0 a <1.0). Defaults a 0.
-        n_fft (int, optional): Número de puntos para la FFT. Defaults a 2048.
-        hop_length (int, optional): Salto para la STFT. Defaults a 512.
-        device (torch.device, optional): Dispositivo para la inferencia. Defaults a CPU.
+        model: Separation model to evaluate
+        dataset_path: Path to evaluation dataset
+        sample_rate: Audio sampling rate
+        chunk_seconds: Inference chunk duration
+        overlap: Chunk overlap ratio
+        n_fft: STFT window size
+        hop_length: STFT hop size
+        device: Computation device
 
     Returns:
-        Tuple[Dict[str, float], Dict[str, List[float]]]:
-            - Diccionario con el SI‑SDR promedio para cada fuente.
-            - Diccionario con la lista de SI‑SDR para cada muestra por fuente.
+        (average_metrics, all_metrics) tuple containing:
+        - average_metrics: Dictionary of average metric values per instrument
+        - all_metrics: Dictionary containing all individual sample metrics
     """
     instruments = ["vocals", "drums", "bass", "other"]
-    all_scores: Dict[str, List[float]] = {inst: [] for inst in instruments}
+    samples = [
+        os.path.join(dataset_path, d)
+        for d in os.listdir(dataset_path)
+        if os.path.isdir(os.path.join(dataset_path, d))
+    ]
 
-    audio_folders: List[str] = os.listdir(dataset_path)
-    si_sdr_metric = ScaleInvariantSignalDistortionRatio().to(device)
-
-    for sample in tqdm(audio_folders, desc="Evaluating"):
-        mixture_path = os.path.join(dataset_path, sample, "mixture.wav")
-        separated_audio = infer_pipeline(
-            model=model,
-            mixture=mixture_path,
-            sample_rate=sample_rate,
-            chunk_seconds=chunk_seconds,
-            overlap=overlap,
-            n_fft=n_fft,
-            hop_length=hop_length,
-            device=device,
-        )
-
-        for inst in instruments:
-            gt_path = os.path.join(dataset_path, sample, f"{inst}.wav")
-            gt_audio = load_audio(gt_path, sample_rate).to(device)
-            pred_audio = separated_audio[inst].clone().detach().to(device)
-            min_len = min(len(gt_audio), len(pred_audio))
-            gt_audio = gt_audio[:min_len]
-            pred_audio = pred_audio[:min_len]
-            score = si_sdr_metric(pred_audio, gt_audio)
-            all_scores[inst].append(score.item())
-
-        del separated_audio, gt_audio, pred_audio, score
-
-    avg_scores = {
-        inst: np.mean(scores) if scores else 0.0 for inst, scores in all_scores.items()
+    # Initialize metric storage
+    all_metrics = {
+        metric: {inst: [] for inst in instruments} for metric in METRICS.keys()
     }
-    return avg_scores, all_scores
+    all_metrics["samples"] = []
+
+    model = model.to(device).eval()
+
+    for sample_path in tqdm(samples, desc="Evaluating", unit="file"):
+        try:
+            sample_metrics = eval_one_file(
+                model=model,
+                sample_path=sample_path,
+                instruments=instruments,
+                sample_rate=sample_rate,
+                chunk_seconds=chunk_seconds,
+                overlap=overlap,
+                n_fft=n_fft,
+                hop_length=hop_length,
+                device=device,
+            )
+
+            # Aggregate metrics
+            for inst in instruments:
+                for metric in METRICS.keys():
+                    all_metrics[metric][inst].append(sample_metrics[inst][metric])
+
+            all_metrics["samples"].append(sample_path)
+
+        except Exception as e:
+            print(f"Skipping {sample_path} due to error: {str(e)}")
+            continue
+
+    # Compute averages excluding failed samples
+    avg_metrics = {
+        metric: {inst: np.nanmean(values) for inst, values in inst_metrics.items()}
+        for metric, inst_metrics in all_metrics.items()
+        if metric != "samples"
+    }
+
+    return avg_metrics, all_metrics

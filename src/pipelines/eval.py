@@ -1,16 +1,17 @@
 import os
+from typing import Dict, List, Optional
+
 import numpy as np
 import torch
-from typing import Dict, List, Optional
-from tqdm.auto import tqdm
+from src.pipelines.infer import infer_pipeline
+from src.utils.audio.processing import load_audio
 from torchmetrics.functional.audio import (
     scale_invariant_signal_distortion_ratio,
     scale_invariant_signal_noise_ratio,
     signal_distortion_ratio,
     signal_noise_ratio,
 )
-from src.pipelines.infer import infer_pipeline
-from src.utils.audio.processing import load_audio
+from tqdm.auto import tqdm
 
 METRICS = {
     "si_sdr": scale_invariant_signal_distortion_ratio,

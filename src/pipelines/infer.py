@@ -1,12 +1,7 @@
 from typing import Dict, List, Union
 
 import torch
-from src.utils.audio.processing import (
-    chunk_waveform,
-    i_mag_stft,
-    load_audio,
-    mag_stft,
-)
+from src.utils.audio.processing import chunk_waveform, i_mag_stft, load_audio, mag_stft
 
 
 def infer_pipeline(

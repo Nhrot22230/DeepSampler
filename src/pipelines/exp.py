@@ -13,6 +13,24 @@ from torch.utils.data import DataLoader
 
 
 def training_experiment(config):
+    print("Starting training experiment")
+    print(f"Experiment config: {config}")
+    print("Device setup:")
+    print(f"Device: {'cuda' if torch.cuda.is_available() else 'cpu'}")
+    print(f"Device count: {torch.cuda.device_count()}")
+    print(f"Device name: {torch.cuda.get_device_name(0)}")
+    print(f"Device memory: {torch.cuda.get_device_properties(0).total_memory / 1e9} GB")
+    spectrogram_shape = (
+        config["audio_params"]["n_fft"] // 2 + 1,
+        config["audio_params"]["chunk_duration"]
+        * config["audio_params"]["sr"]
+        // config["audio_params"]["hop_length"],
+        +1,
+    )
+    print(
+        f"Calculated Spectrogram shape: {spectrogram_shape[0]} x {spectrogram_shape[1]}"
+    )
+
     """Main training experiment function with configurable parameters"""
     instruments = ["vocals", "drums", "bass", "other"]
 

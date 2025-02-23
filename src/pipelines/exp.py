@@ -24,8 +24,8 @@ def training_experiment(config):
         config["audio_params"]["n_fft"] // 2 + 1,
         config["audio_params"]["chunk_duration"]
         * config["audio_params"]["sr"]
-        // config["audio_params"]["hop_length"],
-        +1,
+        // config["audio_params"]["hop_length"]
+        + 1,
     )
     print(
         f"Calculated Spectrogram shape: {spectrogram_shape[0]} x {spectrogram_shape[1]}"

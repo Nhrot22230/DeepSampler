@@ -1,35 +1,35 @@
 # experiment.yaml
 paths:
-  musdb_train: "/home/nhrot/Programming/Python/DeepLearning/DeepSampler/data/musdb18hq/train"
-  musdb_test: "/home/nhrot/Programming/Python/DeepLearning/DeepSampler/data/musdb18hq/test"
-  checkpoints: "/home/nhrot/Programming/Python/DeepLearning/DeepSampler/experiments/checkpoints/dino_samplerd4b128h4l2_0001"
-  results: "/home/nhrot/Programming/Python/DeepLearning/DeepSampler/experiments/results/dino_samplerd4b128h4l2_0001"
-  logs: "/home/nhrot/Programming/Python/DeepLearning/DeepSampler/experiments/logs/dino_samplerd4b128h4l2_0001"
+  musdb_train: "/home/fcandia/my_env/DeepSampler/data/musdb18hq/train"
+  musdb_test: "/home/fcandia/my_env/DeepSampler/data/musdb18hq/test"
+  checkpoints: "/home/fcandia/my_env/DeepSampler/experiments/checkpoints/dino_samplerd4b128h4l2_0001"
+  results: "/home/fcandia/my_env/DeepSampler/experiments/results/dino_samplerd4b128h4l2_0001"
+  logs: "/home/fcandia/my_env/DeepSampler/experiments/logs/dino_samplerd4b128h4l2_0001"
 
 audio_params:
   sr: 44100
-  n_fft: 512
-  hop_length: 512
+  n_fft: 4096
+  hop_length: 256
   chunk_duration: 2
   overlap: 0
 
 model_params:
   n_sources: 4 # NOT MODIFY
-  base_channels: 16
+  base_channels: 32
   depth: 4 # MODIFY CAREFULLY
-  drop_rate: 0.1
+  drop_rate: 0.3
   transformer_heads: 4
   transformer_layers: 2
 
 dataset_params:
-  isolated_max_samples: 250  # null means all available samples and set to integer for limited samples
-  mixed_max_samples: 2000 # null means all available samples and set to integer for limited samples
+  isolated_max_samples: 500  # null means all available samples and set to integer for limited samples
+  mixed_max_samples: null # null means all available samples and set to integer for limited samples
 
 training_params:
   loss_weights: [1.0, 1.0, 1.0, 1.0]
-  isolated_epochs: 5
+  isolated_epochs: 10
   isolated_lr: 3e-3
-  mixed_epochs: 10
+  mixed_epochs: 200
   mixed_lr: 1e-3
-  mixed_batch_size: 8
-  checkpoint_interval: 5
+  mixed_batch_size: 2
+  checkpoint_interval: 10

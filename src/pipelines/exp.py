@@ -1,16 +1,17 @@
 import argparse
 from pathlib import Path
+from pprint import pprint
 
 import matplotlib.pyplot as plt
 import torch
 import yaml
+from torch.utils.data import DataLoader
+
 from src.models import DeepSampler
 from src.pipelines.data import musdb_pipeline
 from src.pipelines.train import train_pipeline
 from src.utils.data.dataset import MUSDBDataset
 from src.utils.train.losses import MultiSourceLoss
-from torch.utils.data import DataLoader
-from pprint import pprint
 
 
 def training_experiment(config):

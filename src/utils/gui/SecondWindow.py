@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
 from src.utils.gui.widgets.toolbar import Toolbar
 
 

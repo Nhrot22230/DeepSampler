@@ -4,10 +4,11 @@ from typing import Dict, List, Optional, Union
 
 import numpy as np
 import torch
+from tqdm.auto import tqdm
+
 from src.utils.audio.audio_chunk import AudioChunk
 from src.utils.audio.processing import chunk_waveform, load_audio
 from src.utils.data.dataset import MUSDBDataset
-from tqdm.auto import tqdm
 
 # Constants
 VALID_CHANNELS = {"bass", "drums", "other", "vocals", "mixture"}

@@ -23,11 +23,11 @@ def training_experiment(config):
     # Print the experiment configuration using pprint with decorations
     print("✨  EXPERIMENT CONFIG  ✨".center(60))
     pprint(config)
-    print("\n" + "-" * 60)
+    print("\n" + "=" * 60)
 
     # Decorative device setup information
     print("🔧  DEVICE SETUP  🔧".center(60))
-    print("-" * 60)
+    print("=" * 60)
     device_type = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"{'Device:':20} {device_type}")
     device_count = torch.cuda.device_count()
@@ -37,7 +37,7 @@ def training_experiment(config):
         device_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
         print(f"{'Device name:':20} {device_name}")
         print(f"{'Device memory:':20} {device_memory:.2f} GB")
-    print("-" * 60)
+    print("=" * 60)
 
     # Calculate and print the spectrogram shape with decoration
     spectrogram_shape = (

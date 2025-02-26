@@ -59,53 +59,6 @@ class TDFBlock(nn.Module):
         return x_processed.permute(0, 2, 3, 1)  # (B, C, F, T)
 
 
-class TDCBlock(nn.Module):
-    """
-    Time-Distributed Convolutions (TDC) with dense connections
-    Implements a dense block structure where each layer's output is concatenated
-    with all previous outputs for subsequent layers
-    """
-
-    def __init__(self, num_layers: int, growth_rate: int, kernel_size: int = 3):
-        super().__init__()
-        self.num_layers = num_layers
-        self.growth_rate = growth_rate
-        self.kernel_size = kernel_size
-
-        # Each layer takes all previous features as input
-        self.layers = nn.ModuleList(
-            [self._make_dense_layer(i) for i in range(num_layers)]
-        )
-
-    def _make_dense_layer(self, layer_num: int):
-        """Create a composite layer with dense connections"""
-        in_channels = self.growth_rate * (layer_num + 1)  # Accumulated channels
-        return nn.Sequential(
-            nn.Conv1d(
-                in_channels,
-                self.growth_rate,
-                kernel_size=self.kernel_size,
-                padding=self.kernel_size // 2,
-                bias=False,
-            ),
-            nn.BatchNorm1d(self.growth_rate),
-            nn.ReLU(inplace=True),
-        )
-
-    def forward(self, x):
-        # Input shape: (B*T, C, F)
-        features = [x]
-
-        for layer in self.layers:
-            # Concatenate all previous features along channel dimension
-            new_input = torch.cat(features, dim=1)
-            new_features = layer(new_input)
-            features.append(new_features)
-
-        # Return concatenation of all features except original input
-        return torch.cat(features[1:], dim=1)
-
-
 class TFCBlock(nn.Module):
     """
     Time-Frequency Convolutions (TFC) dense block

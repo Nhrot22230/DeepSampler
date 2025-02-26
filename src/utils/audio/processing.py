@@ -80,6 +80,7 @@ def i_mag_stft(
     spectrogram: torch.Tensor,
     n_fft: int = 2048,
     hop_length: int = 512,
+    n_iter: int = 512,
 ) -> torch.Tensor:
     """
     Reconstruct the waveform from a log-magnitude spectrogram and its phase.
@@ -101,6 +102,7 @@ def i_mag_stft(
         n_fft=n_fft,
         hop_length=hop_length,
         window_fn=lambda x: torch.hann_window(x, device=spectrogram.device),
+        n_iter=n_iter,
     )
 
     return gm(spectrogram)

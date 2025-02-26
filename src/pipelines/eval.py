@@ -188,7 +188,7 @@ def eval_pipeline(
     model = model.to(device).eval()
 
     # Process samples with progress tracking
-    for sample_path in tqdm(samples, desc="Evaluating", unit="sample"):
+    for sample_path in tqdm(samples, desc="Evaluating", unit="sample", leave=False):
         try:
             sample_results = eval_one_file(
                 model=model,

@@ -1,4 +1,5 @@
 import copy
+import enum
 from typing import List, Union
 
 import torch
@@ -6,7 +7,6 @@ from torch.utils.data import Dataset
 
 from src.utils.audio.audio_chunk import AudioChunk
 from src.utils.audio.processing import mag_stft
-import enum
 
 
 class ChunkType(enum.Enum):

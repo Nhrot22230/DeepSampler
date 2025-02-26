@@ -1,10 +1,10 @@
-import torch
 import pytest
+import torch
 from torch import Tensor
 
 # Import the classes under test.
 # Adjust the import path to match your project structure.
-from src.models.dino_sampler import TDFBlock, TDCBlock, TFCBlock, TFCTDFBlock
+from src.models.dino_sampler import TDCBlock, TDFBlock, TFCBlock, TFCTDFBlock
 
 BATCH_SIZE = 2
 

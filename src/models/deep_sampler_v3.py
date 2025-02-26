@@ -1,8 +1,9 @@
+from typing import List, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
-from typing import List, Tuple
 
 
 class Encoder1D(nn.Module):

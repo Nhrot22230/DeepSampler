@@ -5,7 +5,7 @@ from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from typing import List, Tuple
 
 
-class EnhancedEncoderBlock(nn.Module):
+class Encoder(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, dropout: float = 0.2):
         super().__init__()
         self.conv = nn.Sequential(
@@ -27,10 +27,10 @@ class EnhancedEncoderBlock(nn.Module):
         return x, self.pool(x)
 
 
-class EnhancedDecoderBlock(nn.Module):
+class Decoder(nn.Module):
     def __init__(self, in_ch: int, out_ch: int, dropout: float = 0.2):
         super().__init__()
-        self.up = nn.Upsample(scale_factor=2, mode="nearest")
+        self.up = nn.ConvTranspose2d(in_ch, out_ch, 2, stride=2)
         self.conv = nn.Sequential(
             nn.Conv2d(in_ch + out_ch, out_ch, 3, padding=1),
             nn.GroupNorm(8, out_ch),
@@ -38,86 +38,102 @@ class EnhancedDecoderBlock(nn.Module):
             nn.Dropout2d(dropout),
         )
         self.res_path = (
-            nn.Conv2d(in_ch, out_ch, 1) if in_ch != out_ch else nn.Identity()
+            nn.Conv2d(in_ch + out_ch, out_ch, 1) if in_ch != out_ch else nn.Identity()
         )
 
     def forward(self, x: torch.Tensor, skip: torch.Tensor) -> torch.Tensor:
+        # Input: [batch, in_ch, h, w]
+        # Skip: [batch, out_ch, h*2, w*2] (from corresponding encoder level)
+
+        # Upsample input: [batch, in_ch, h, w] -> [batch, out_ch, h*2, w*2]
         x = self.up(x)
-        # Dynamic padding handling
-        if x.size() != skip.size():
-            diffY = skip.size()[2] - x.size()[2]
-            diffX = skip.size()[3] - x.size()[3]
-            x = F.pad(
-                x, [diffX // 2, diffX - diffX // 2, diffY // 2, diffY - diffY // 2]
-            )
+
+        # Concatenate with skip connection along channel dimension
+        # [batch, out_ch, h*2, w*2] + [batch, out_ch, h*2, w*2] -> [batch, out_ch*2, h*2, w*2]
         x = torch.cat([x, skip], dim=1)
-        return self.conv(x) + self.res_path(
-            x[:, : x.size(1) // 2, :, :]
-        )  # Residual fusion
 
+        # Apply residual connection
+        # [batch, out_ch*2, h*2, w*2] -> [batch, out_ch, h*2, w*2]
+        residual = self.res_path(x)
 
-class PreLNTransformerEncoderLayer(TransformerEncoderLayer):
-    def __init__(self, d_model: int, nhead: int, dim_feedforward=2048, dropout=0.1):
-        super().__init__(d_model, nhead, dim_feedforward, dropout)
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
+        # Apply convolutional block
+        # [batch, out_ch*2, h*2, w*2] -> [batch, out_ch, h*2, w*2]
+        conv = self.conv(x)
 
-    def forward(
-        self, src: torch.Tensor, src_mask=None, src_key_padding_mask=None
-    ) -> torch.Tensor:
-        # Pre-LayerNorm implementation
-        src2 = self.norm1(src)
-        src = src + self._sa_block(src2, src_mask, src_key_padding_mask)
-        src2 = self.norm2(src)
-        src = src + self._ff_block(src2)
-        return src
+        # Add residual connection
+        # [batch, out_ch, h*2, w*2] + [batch, out_ch, h*2, w*2] -> [batch, out_ch, h*2, w*2]
+        return conv + residual
 
 
 class DeepSamplerV2(nn.Module):
     def __init__(
-        self, in_ch=1, out_ch=4, base_ch=32, depth=4, dropout=0.2, t_heads=4, t_layers=2
+        self,
+        in_ch: int = 1,
+        out_ch: int = 4,
+        base_ch: int = 32,
+        depth=4,
+        dropout=0.2,
+        t_heads=4,
+        t_layers=2,
     ):
         super().__init__()
         self.depth = depth
 
-        # Encoder with enhanced blocks
-        self.encoders = nn.ModuleList()
-        encoder_channels = []
-        current_ch = in_ch
-        for i in range(depth):
-            out_ch = base_ch * (2**i)
-            self.encoders.append(EnhancedEncoderBlock(current_ch, out_ch, dropout))
-            encoder_channels.append(out_ch)
-            current_ch = out_ch
+        # Channel configuration: [32, 64, 128, 256, 512] for depth=4
+        channels = [base_ch * (2**i) for i in range(depth + 1)]
 
-        # Bottleneck with expanded capacity
+        # --- Encoder Path ---
+        # Initial projection (1 -> 32)
+        self.initial_conv = nn.Conv2d(
+            in_ch, base_ch, kernel_size=1, padding=0
+        )  # [1->32]
+
+        # Encoder blocks (32->64->128->256 for depth=4)
+        self.encoders = nn.ModuleList()
+        for i in range(depth):  # [0,1,2,3 for depth=4]
+            in_c = channels[i]
+            out_c = channels[i + 1]
+            self.encoders.append(
+                Encoder(
+                    in_c, out_c, dropout=dropout
+                ),  # [32->64], [64->128], [128->256], [256->512]
+            )
+
+        # --- Bottleneck ---
+        # Final encoder to bottleneck (512->1024)
         self.bottleneck = nn.Sequential(
-            nn.Conv2d(current_ch, current_ch * 2, 3, padding=1),
-            nn.GroupNorm(8, current_ch * 2),
+            nn.Conv2d(channels[-1], channels[-1], kernel_size=3, padding=1),
+            nn.GroupNorm(8, channels[-1]),
             nn.GELU(),
         )
-        bottleneck_ch = current_ch * 2
 
-        # Transformer with pre-LN
+        # --- Transformer ---
+        # Requires (batch, seq_len, features) - handled in forward
         self.transformer = TransformerEncoder(
-            PreLNTransformerEncoderLayer(
-                d_model=bottleneck_ch,
+            TransformerEncoderLayer(
+                d_model=channels[-1],  # 1024
                 nhead=t_heads,
-                dim_feedforward=bottleneck_ch * 4,
                 dropout=dropout,
+                batch_first=True,
             ),
             num_layers=t_layers,
         )
 
-        # Decoder with enhanced blocks
+        # --- Decoder Path ---
+        # Reverse channel list: [1024, 256, 128, 64]
         self.decoders = nn.ModuleList()
-        for i in reversed(range(depth)):
-            out_ch = encoder_channels[i]
-            self.decoders.append(EnhancedDecoderBlock(bottleneck_ch, out_ch, dropout))
-            bottleneck_ch = out_ch
+        for i in reversed(range(depth)):  # [3,2,1,0 for depth=4]
+            in_c = channels[i + 1]  # [512, 256, 128, 64]
+            out_c = in_c // 2  # [256, 128, 64, 32]
+            self.decoders.append(
+                Decoder(in_c, out_c, dropout=dropout)  # [512->256], [256->128], etc.
+            )
 
-        # Final output with multi-scale fusion
-        self.final_conv = nn.Sequential(nn.Conv2d(base_ch, out_ch, 1), nn.GELU())
+        # --- Final Output ---
+        # Project back to output channels (32->4)
+        self.final_conv = nn.Sequential(
+            nn.Conv2d(base_ch, out_ch, kernel_size=3, padding=1), nn.GELU()  # [32->4]
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Dynamic padding implementation
@@ -132,6 +148,8 @@ class DeepSamplerV2(nn.Module):
             (new_h - orig_h) - (new_h - orig_h) // 2,
         )
         x = F.pad(x, padding)
+
+        x = self.initial_conv(x)
 
         # Encoder forward with skip connections
         skips: List[torch.Tensor] = []
@@ -149,8 +167,10 @@ class DeepSamplerV2(nn.Module):
         x = x.permute(0, 2, 1).view(b, c, h, w)
 
         # Decoder with enhanced skip connections
+        cont = 0
         for decoder, skip in zip(self.decoders, reversed(skips)):
             x = decoder(x, skip)
+            cont += 1
 
         # Final output
         x = self.final_conv(x)

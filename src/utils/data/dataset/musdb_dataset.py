@@ -6,6 +6,12 @@ from torch.utils.data import Dataset
 
 from src.utils.audio.audio_chunk import AudioChunk
 from src.utils.audio.processing import mag_stft
+import enum
+
+
+class ChunkType(enum.Enum):
+    SPEC: str = "spec"
+    WAVE: str = "wave"
 
 
 class MUSDBDataset(Dataset):
@@ -24,10 +30,12 @@ class MUSDBDataset(Dataset):
         data: List[Union[AudioChunk, str]],
         n_fft: int = 2048,
         hop_length: int = 512,
+        chunk_type: ChunkType = ChunkType.SPEC,
     ):
         self.data: List[Union[AudioChunk, str]] = data
         self.n_fft = n_fft
         self.hop_length = hop_length
+        self.chunk_type = chunk_type
 
     def __len__(self):
         return len(self.data)
@@ -38,14 +46,14 @@ class MUSDBDataset(Dataset):
         audio_chunk: AudioChunk = (
             AudioChunk.from_file(item) if isinstance(item, str) else copy.deepcopy(item)
         )
-
-        target_keys = ["mixture", "vocals", "drums", "bass", "other"]
-        for key in target_keys:
-            audio_chunk[key] = mag_stft(
-                audio_chunk[key],
-                n_fft=self.n_fft,
-                hop_length=self.hop_length,
-            )
+        if self.chunk_type == ChunkType.SPEC:
+            target_keys = ["mixture", "vocals", "drums", "bass", "other"]
+            for key in target_keys:
+                audio_chunk[key] = mag_stft(
+                    audio_chunk[key],
+                    n_fft=self.n_fft,
+                    hop_length=self.hop_length,
+                )
 
         input_spec = audio_chunk["mixture"].unsqueeze(0)
         target_spec = torch.stack(

@@ -7,20 +7,13 @@ import moviepy.editor as mp
 import numpy as np
 import soundfile as sf
 import torch
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import \
+    FigureCanvasQTAgg as FigureCanvas
 from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
-from PyQt6.QtWidgets import (
-    QFileDialog,
-    QHBoxLayout,
-    QLabel,
-    QMainWindow,
-    QMessageBox,
-    QPushButton,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt6.QtWidgets import (QFileDialog, QHBoxLayout, QLabel, QMainWindow,
+                             QMessageBox, QPushButton, QVBoxLayout, QWidget)
 
 from src.utils.gui.widgets.toolbar import Toolbar
 

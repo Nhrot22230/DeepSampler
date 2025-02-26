@@ -1,5 +1,6 @@
-import torch.nn as nn
 import torch
+import torch.nn as nn
+
 from src.utils.train.tensor_logger import TensorLogger
 
 

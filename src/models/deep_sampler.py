@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from .components.encoder import EncoderBlock
 from .components.decoder import DecoderBlock
-from .components.attention import FreqAttention, TransformerModule
+from .components.attention import TransformerModule, FreqAttention
 from src.utils.train.tensor_logger import TensorLogger
 
 

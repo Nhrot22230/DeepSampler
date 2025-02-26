@@ -74,6 +74,7 @@ def train_pipeline(
     optimizer: torch.optim.Optimizer,
     device: torch.device = torch.device("cpu"),
     scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+    checkpoint_name: Optional[str] = None,
     checkpoint_every: Optional[int] = None,
     checkpoint_dir: str = "checkpoints",
     use_amp: bool = False,
@@ -139,7 +140,8 @@ def train_pipeline(
             # Save checkpoint
             if checkpoint_every and epoch % checkpoint_every == 0:
                 checkpoint_path = os.path.join(
-                    checkpoint_dir, f"checkpoint_epoch{epoch:03d}.pth"
+                    checkpoint_dir,
+                    f"{checkpoint_name if checkpoint_name else 'model'}_epoch_{epoch:03d}.pth",
                 )
                 torch.save(
                     model.state_dict(),

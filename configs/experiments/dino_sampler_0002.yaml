@@ -1,10 +1,10 @@
 # experiment.yaml
 paths:
-  musdb_train: "/home/fcandia/my_env/DeepSampler/data/musdb18hq/train"
-  musdb_test:  "/home/fcandia/my_env/DeepSampler/data/musdb18hq/test"
-  checkpoints: "/home/fcandia/my_env/DeepSampler/experiments/checkpoints/"
-  results:     "/home/fcandia/my_env/DeepSampler/experiments/results/"
-  logs:        "/home/fcandia/my_env/DeepSampler/experiments/logs/"
+  musdb_train: "/home/nhrot/Programming/Python/DeepLearning/DeepSampler/data/musdb18hq/train"
+  musdb_test:  "/home/nhrot/Programming/Python/DeepLearning/DeepSampler/data/musdb18hq/test"
+  checkpoints: "/home/nhrot/Programming/Python/DeepLearning/DeepSampler/experiments/checkpoints/"
+  results:     "/home/nhrot/Programming/Python/DeepLearning/DeepSampler/experiments/results/"
+  logs:        "/home/nhrot/Programming/Python/DeepLearning/DeepSampler/experiments/logs/"
 
 audio_params:
   sr: 44100

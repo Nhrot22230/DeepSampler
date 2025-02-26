@@ -126,7 +126,7 @@ def training_experiment(config):
                 epochs=train_params["isolated_epochs"],
                 device=device,
             )
-
+        del isolated_datasets, isolated_loader
         # Phase 2: Mixed training
         train_dataset = musdb_pipeline(
             musdb_path=Path(config["paths"]["musdb_train"]),
@@ -150,11 +150,12 @@ def training_experiment(config):
             ),
             dataloader=train_loader,
             epochs=train_params["mixed_epochs"],
+            checkpoint_name=config["training_params"]["checkpoint_name"],
             checkpoint_dir=Path(config["paths"]["checkpoints"]),
             checkpoint_every=train_params["checkpoint_interval"],
             device=device,
         )
-
+        del train_dataset, train_loader
         # Plot training results
         plt.figure(figsize=(10, 5))
         plt.plot(history["loss"], label="Training Loss")

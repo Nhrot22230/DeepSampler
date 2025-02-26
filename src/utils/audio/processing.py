@@ -105,6 +105,4 @@ def i_mag_stft(
         n_iter=n_iter,
     )
 
-    wav = gm(spectrogram)
-    normalized = wav / wav.abs().max()
-    return normalized
+    return gm(spectrogram)

@@ -1,5 +1,5 @@
 from typing import Dict, List, Union
-
+import torchaudio
 import torch
 from tqdm.auto import tqdm
 
@@ -67,6 +67,25 @@ def infer_pipeline(
 
     separated_audio: Dict[str, torch.Tensor] = {}
     for inst in instruments:
-        separated_audio[inst] = torch.cat(separated_chunks[inst], dim=0)
+        # Usamos torchaudio.functional.fade y concatenación inteligente
+        chunks_to_join = []
+        for i, chunk in enumerate(separated_chunks[inst]):
+            if i > 0 and overlap > 0:
+                # Aplicamos crossfade entre chunks
+                fade_length = int(sample_rate * overlap)
+                chunk = torchaudio.functional.fade(
+                    chunk, fade_in_len=0, fade_out_len=fade_length
+                )
+                prev_chunk = torchaudio.functional.fade(
+                    chunks_to_join[-1], fade_in_len=fade_length, fade_out_len=0
+                )
+                chunks_to_join[-1] = prev_chunk + chunk.narrow(-1, 0, fade_length)
+                chunk = chunk.narrow(-1, fade_length, chunk.size(-1) - fade_length)
+            chunks_to_join.append(chunk)
+
+        # Concatenación final con torch.cat
+        separated_audio[inst] = torch.cat(chunks_to_join, dim=-1)
+
+    return separated_audio
 
     return separated_audio

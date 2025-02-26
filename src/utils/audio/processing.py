@@ -41,7 +41,7 @@ def chunk_waveform(
     if waveform.dim() == 1:
         chunks = waveform.unfold(dimension=0, size=chunk_len, step=hop_len)
     else:
-        raise ValueError("waveform debe ser 1D o 2D.")
+        raise ValueError("waveform debe ser 1D.")
 
     return [chunk.clone() for chunk in chunks]
 
@@ -80,6 +80,7 @@ def i_mag_stft(
     spectrogram: torch.Tensor,
     n_fft: int = 2048,
     hop_length: int = 512,
+    n_iter: int = 32,
 ) -> torch.Tensor:
     """
     Reconstruct the waveform from a log-magnitude spectrogram and its phase.
@@ -101,21 +102,9 @@ def i_mag_stft(
         n_fft=n_fft,
         hop_length=hop_length,
         window_fn=lambda x: torch.hann_window(x, device=spectrogram.device),
+        n_iter=n_iter,
     )
 
-    return gm(spectrogram)
-
-
-def wiener_filter(
-    mix_spec: torch.Tensor, target_spec: torch.Tensor, eps: float = 1e-8
-) -> torch.Tensor:
-    """Wiener filtering using estimated source spectrogram.
-
-    Args:
-        mix_spec: (..., freq, time) complex mixture spectrogram
-        target_spec: (..., freq, time) estimated target magnitude
-    Returns:
-        filtered_spec: (..., freq, time) complex filtered spectrogram
-    """
-    mask = target_spec / (torch.abs(mix_spec) + eps)
-    return mix_spec * mask
+    wav = gm(spectrogram)
+    normalized = wav / wav.abs().max()
+    return normalized

@@ -11,6 +11,7 @@ def infer_pipeline(
     sample_rate: int = 44100,
     chunk_seconds: float = 2,
     overlap: float = 0,
+    n_iter: int = 64,
     n_fft: int = 2048,
     hop_length: int = 512,
     device: torch.device = torch.device("cpu"),
@@ -58,7 +59,12 @@ def infer_pipeline(
             pred = model(spec)  # Expected shape: [1, C, F, T]
             pred = pred.squeeze(0)  # Now shape: [C, F, T]
             for i, inst in enumerate(instruments):
-                wav_chunk = i_mag_stft(pred[i], n_fft, hop_length)
+                wav_chunk = i_mag_stft(
+                    spectrogram=pred[i],
+                    n_fft=n_fft,
+                    hop_length=hop_length,
+                    n_iter=n_iter,
+                )
                 separated_chunks[inst].append(wav_chunk)
                 del wav_chunk
             del spec, pred

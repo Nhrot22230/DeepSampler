@@ -61,12 +61,12 @@ def training_experiment(config):
     # Model parameters and instantiation
     model_params = config["model_params"]
     model = DeepSampler(
-        output_channels=model_params["n_sources"],
-        base_channels=model_params["base_channels"],
+        out_ch=model_params["n_sources"],
+        base_ch=model_params["base_channels"],
         depth=model_params["depth"],
         dropout=model_params["drop_rate"],
-        transformer_heads=model_params["transformer_heads"],
-        transformer_layers=model_params["transformer_layers"],
+        t_heads=model_params["transformer_heads"],
+        t_layers=model_params["transformer_layers"],
     )
 
     # Enable multi-GPU training if multiple GPUs are available.

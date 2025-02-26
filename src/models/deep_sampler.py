@@ -113,13 +113,13 @@ class DeepSampler(nn.Module):
 
     def __init__(
         self,
-        input_channels: int = 1,
-        output_channels: int = 4,
-        base_channels: int = 32,
+        in_ch: int = 1,
+        out_ch: int = 4,
+        base_ch: int = 32,
         depth: int = 4,
         dropout: float = 0.2,
-        transformer_heads: int = 4,
-        transformer_layers: int = 2,
+        t_heads: int = 4,
+        t_layers: int = 2,
     ):
         """
         Initializes the DeepSampler network.
@@ -140,9 +140,9 @@ class DeepSampler(nn.Module):
         encoder_channels = []
 
         # Build encoder blocks.
-        in_ch = input_channels
+        in_ch = in_ch
         for i in range(depth):
-            out_ch = base_channels * (2**i)
+            out_ch = base_ch * (2**i)
             self.encoders.append(EncoderBlock(in_ch, out_ch, dropout=dropout))
             encoder_channels.append(out_ch)
             in_ch = out_ch
@@ -159,11 +159,11 @@ class DeepSampler(nn.Module):
         self.transformer = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
                 d_model=bottleneck_channels,
-                nhead=transformer_heads,
+                nhead=t_heads,
                 dropout=dropout,
                 batch_first=True,
             ),
-            num_layers=transformer_layers,
+            num_layers=t_layers,
         )
 
         # Build decoder blocks (in reverse order).
@@ -176,7 +176,7 @@ class DeepSampler(nn.Module):
 
         # Final convolution: maps to the desired output channels.
         self.final_conv = nn.Sequential(
-            nn.Conv2d(base_channels, output_channels, kernel_size=1),
+            nn.Conv2d(base_ch, out_ch, kernel_size=1),
             nn.ReLU(inplace=True),
         )
 

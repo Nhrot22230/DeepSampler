@@ -60,7 +60,7 @@ def infer_pipeline(
     model.to(device)
 
     # extract phase from mixture
-    phase = torch.angle(torch.stft(mixture_waveform, n_fft, hop_length))
+    # phase = torch.angle(torch.stft(mixture_waveform, n_fft, hop_length))
 
     with torch.no_grad():
         for chunk in tqdm(mixture_chunks, desc="Processing chunks"):
@@ -69,8 +69,8 @@ def infer_pipeline(
             pred = model(spec)  # Expected shape: [1, C, F, T]
             pred = pred.squeeze(0)  # Now shape: [C, F, T]
             for i, inst in enumerate(instruments):
-                # wav_chunk = i_mag_stft(pred[i], n_fft, hop_length, n_iter=n_iter)
-                wav_chunk = reconstruct_waveform(pred[i], phase, n_fft, hop_length)
+                wav_chunk = i_mag_stft(pred[i], n_fft, hop_length, n_iter=n_iter)
+                # wav_chunk = reconstruct_waveform(pred[i], phase, n_fft, hop_length)
                 separated_chunks[inst].append(wav_chunk)
                 del wav_chunk
             del spec, pred
@@ -84,7 +84,5 @@ def infer_pipeline(
 
         # Concatenación final con torch.cat
         separated_audio[inst] = torch.cat(chunks_to_join, dim=-1)
-
-    return separated_audio
 
     return separated_audio

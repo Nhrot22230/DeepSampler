@@ -106,3 +106,38 @@ def i_mag_stft(
     )
 
     return gm(spectrogram)
+
+
+def reconstruct_waveform(
+    spec: torch.Tensor, phase: torch.Tensor, n_fft: int, hop_length: int
+) -> torch.Tensor:
+    """
+    Reconstruct an audio waveform from a spectrogram magnitude and phase using torchaudio.
+
+    Args:
+        spec (Tensor): Magnitude spectrogram of shape (..., freq_bins, time_steps).
+        phase (Tensor): Phase spectrogram (in radians) of shape (..., freq_bins, time_steps).
+        n_fft (int): Size of FFT.
+        hop_length (int): Hop (stride) length between STFT windows.
+
+    Returns:
+        Tensor: The reconstructed waveform.
+    """
+    if spec.shape != phase.shape:
+        raise ValueError("SPEC and PHASE shapes must match.")
+
+    # Combine magnitude and phase to form a complex spectrogram.
+    # torch.polar returns a complex tensor from magnitude and phase.
+    complex_spec = torch.polar(spec, phase)
+
+    # Create the window function and ensure it is on the same device as spec.
+    window = torch.hann_window(n_fft, device=spec.device)
+
+    # Use torchaudio's ISTFT to reconstruct the waveform.
+    waveform = torchaudio.functional.inverse_spectrogram(
+        complex_spec,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        window=window,
+    )
+    return waveform

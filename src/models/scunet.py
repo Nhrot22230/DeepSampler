@@ -14,12 +14,12 @@ class SpecEncoder(nn.Module):
         super(SpecEncoder, self).__init__()
         self.conv1 = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.GroupNorm(32, out_channels),
+            nn.BatchNorm2d(out_channels),
             nn.ReLU(),
         )
         self.conv2 = nn.Sequential(
             nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.GroupNorm(32, out_channels),
+            nn.BatchNorm2d(out_channels),
             nn.ReLU(),
         )
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
@@ -46,13 +46,13 @@ class SpecDecoder(nn.Module):
             nn.ConvTranspose2d(
                 out_channels * 2, out_channels, kernel_size=3, padding=1
             ),
-            nn.GroupNorm(32, out_channels),
+            nn.BatchNorm2d(out_channels),
             nn.ReLU(),
             nn.Dropout(0.4),
         )
         self.deconv2 = nn.Sequential(
             nn.ConvTranspose2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.GroupNorm(32, out_channels),
+            nn.BatchNorm2d(out_channels),
             nn.ReLU(),
             nn.Dropout(0.4),
         )

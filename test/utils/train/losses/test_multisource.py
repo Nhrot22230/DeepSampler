@@ -1,5 +1,8 @@
-from test.utils_test import (NUM_SOURCES, generate_batched_tensors,
-                             generate_unbatched_tensors)
+from test.utils_test import (
+    NUM_SOURCES,
+    generate_batched_tensors,
+    generate_unbatched_tensors,
+)
 
 import pytest
 import torch

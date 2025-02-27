@@ -4,8 +4,15 @@ import traceback
 import torch
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QAction, QActionGroup
-from PyQt6.QtWidgets import (QApplication, QFileDialog, QMenu, QMessageBox,
-                             QStyleFactory, QToolBar, QToolButton)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QMenu,
+    QMessageBox,
+    QStyleFactory,
+    QToolBar,
+    QToolButton,
+)
 
 
 class Toolbar(QObject):

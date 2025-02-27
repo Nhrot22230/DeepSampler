@@ -3,8 +3,13 @@ from typing import Dict, List, Union
 import torch
 from tqdm.auto import tqdm
 
-from src.utils.audio.processing import (chunk_waveform, i_mag_stft, load_audio,
-                                        mag_stft)
+from src.utils.audio.processing import (
+    chunk_waveform,
+    i_mag_stft,
+    load_audio,
+    mag_stft,
+    reconstruct_waveform,
+)
 
 
 def infer_pipeline(
@@ -54,6 +59,9 @@ def infer_pipeline(
     model.eval()
     model.to(device)
 
+    # extract phase from mixture
+    phase = torch.angle(torch.stft(mixture_waveform, n_fft, hop_length))
+
     with torch.no_grad():
         for chunk in tqdm(mixture_chunks, desc="Processing chunks"):
             spec = mag_stft(chunk, n_fft, hop_length)
@@ -61,7 +69,8 @@ def infer_pipeline(
             pred = model(spec)  # Expected shape: [1, C, F, T]
             pred = pred.squeeze(0)  # Now shape: [C, F, T]
             for i, inst in enumerate(instruments):
-                wav_chunk = i_mag_stft(pred[i], n_fft, hop_length, n_iter=n_iter)
+                # wav_chunk = i_mag_stft(pred[i], n_fft, hop_length, n_iter=n_iter)
+                wav_chunk = reconstruct_waveform(pred[i], phase, n_fft, hop_length)
                 separated_chunks[inst].append(wav_chunk)
                 del wav_chunk
             del spec, pred

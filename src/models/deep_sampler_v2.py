@@ -97,13 +97,13 @@ class DeepSamplerV2(nn.Module):
         channels = [in_ch] + [base_ch * 2**i for i in range(depth + 1)]
         for i in range(depth):
             self.encoder.append(
-                SpecEncoder(channels[i], channels[i + 1], groups=channels[i])
+                SpecEncoder(channels[i], channels[i + 1], groups=base_ch)
             )
             self.decoder.append(
                 SpecDecoder(
                     channels[-i - 1],
                     channels[-i - 2],
-                    groups=channels[i],
+                    groups=base_ch,
                     dropout=dropout,
                 )
             )
